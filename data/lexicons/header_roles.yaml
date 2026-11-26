@@ -354,7 +354,6 @@ id_txn:
   - trip id
   - invoice no
   - order id
-  - package code
   - ticket id
   - tracking id
   - accession no
@@ -392,7 +391,6 @@ clinical:
   - form
   - schedule
   - category
-  - procedure
   - test
   - tests
   - result
@@ -456,3 +454,18 @@ free_text:
   - body
   - to
   - from
+procedure:
+  - procedure
+  - procedure name
+  - procedure done
+  - surgery
+  - operation
+  - operation name
+  - प्रक्रिया
+  - सर्जरी
+package_code:
+  - package code
+  - package
+  - pkg code
+  - hbp code
+  - package id

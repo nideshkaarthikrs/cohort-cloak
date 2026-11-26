@@ -115,6 +115,10 @@ class Scrubber:
             self.identifiers += 1
             self.stats[ROLE_PLACEHOLDER[role]] += 1
             return self.sentinel("name" if role == "patient_name" else "mrn", ROLE_PLACEHOLDER[role]), 1
+        if role in ("procedure", "package_code"):
+            if self.table is None:
+                return value, 0
+            return self.sentinel("proc", value, (role, value.strip())), 0
         if role in ("age", "age_sex"):
             span = first_number_span(value)
             if self.table is None or span is None:

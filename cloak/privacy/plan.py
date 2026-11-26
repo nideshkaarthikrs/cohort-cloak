@@ -8,7 +8,7 @@ from cloak.privacy.ages import band_for
 
 
 class Plan:
-    def __init__(self, keys, policy, unit_group, group_shift, group_ages, group_level, code_level, unit_loc, group_loc):
+    def __init__(self, keys, policy, unit_group, group_shift, group_ages, group_level, code_level, unit_loc, group_loc, proc_rare=None):
         self.keys, self.policy = keys, policy
         self.unit_group = unit_group
         self.group_shift = group_shift
@@ -17,6 +17,7 @@ class Plan:
         self.code_level = code_level
         self.unit_loc = unit_loc
         self.group_loc = group_loc
+        self.proc_rare = proc_rare or {}  # (role, value or prefix) -> True when few patients have it
         self.touched = set()      # units where something was generalised
 
     # ---- dates -----------------------------------------------------------------------------
@@ -35,6 +36,18 @@ class Plan:
     def icd(self, unit, code: str):
         g = self.unit_group[unit]
         return suppress.apply_level(code, self.code_level.get(code, 0))
+
+    # ---- procedures and package codes --------------------------------------------------------
+    def proc(self, payload, fallback):
+        role, value = payload
+        if role == "procedure":
+            return suppress.procedure_label(value) if self.proc_rare.get(("procedure", value.casefold())) else fallback
+        if not self.proc_rare.get(("package_code", value.upper())):
+            return fallback
+        pre = suppress.package_prefix(value)
+        if pre and not self.proc_rare.get(("package_prefix", pre.upper())):
+            return pre.upper() + "***"
+        return "[PACKAGE]"
 
     # ---- location ----------------------------------------------------------------------------
     def place(self, unit, kind: str):
@@ -75,6 +88,16 @@ def build(keys, policy, table, unit_psn, rels, unit_info) -> Plan:
     if cap > 0:  # "rare" scales with the cohort: a fixed 8 would blank most diagnoses of a 50-patient set
         cap = max(int(policy.get("rare_dx_floor", 3)), min(cap, int(float(policy.get("rare_dx_fraction", 0.05)) * n_patients)))
     code_level = suppress.rare_levels(group_codes, cap)
+    proc_groups = defaultdict(set)
+    for fid, rec, kind, _fb, payload in table:
+        if kind == "proc":
+            role, value = payload
+            g = unit_group[(fid, rec)]
+            proc_groups[(role, value.upper() if role == "package_code" else value.casefold())].add(g)
+            pre = suppress.package_prefix(value) if role == "package_code" else None
+            if pre:
+                proc_groups[("package_prefix", pre.upper())].add(g)
+    proc_rare = {k: True for k, gs in proc_groups.items() if len(gs) <= cap} if cap > 0 and policy.get("rare_proc_mode", "generalise") == "generalise" else {}
     # location facts per unit and per group
     unit_loc = {u: unit_info.get(u, {}) for u in units}
     group_loc = defaultdict(dict)
@@ -95,4 +118,4 @@ def build(keys, policy, table, unit_psn, rels, unit_info) -> Plan:
         infos[g] = {"gender": loc.get("gender", ""), "age_min": min(ages), "district": (loc.get("district") or "").casefold(),
                     "dx": dx, "dx_chapter": dxc}
     group_level = suppress.escalate(infos, int(policy["k_min"]), int(policy.get("k_max_level", 3)))
-    return Plan(keys, policy, unit_group, group_shift, group_ages, group_level, code_level, unit_loc, group_loc)
+    return Plan(keys, policy, unit_group, group_shift, group_ages, group_level, code_level, unit_loc, group_loc, proc_rare)

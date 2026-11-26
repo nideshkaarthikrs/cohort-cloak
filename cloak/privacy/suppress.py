@@ -95,3 +95,23 @@ def escalate(groups: dict, k_min: int, max_level: int = 3) -> dict:
         for g in low:
             level[g] += 1
     return level
+
+
+_PROC_FAMILIES = (("ectomy", "Excision procedure"), ("otomy", "Incision procedure"), ("ostomy", "Incision procedure"),
+                  ("plasty", "Reconstructive procedure"), ("scopy", "Endoscopic procedure"),
+                  ("graphy", "Imaging procedure"), ("repair", "Repair procedure"), ("transplant", "Transplant procedure"),
+                  ("replacement", "Replacement procedure"), ("biopsy", "Biopsy procedure"))
+
+
+def procedure_label(text: str) -> str:
+    """Generic family for a rare procedure name; suffix rules only, no procedure list."""
+    t = text.casefold()
+    for suffix, label in _PROC_FAMILIES:
+        if suffix in t:
+            return label
+    return "Surgical procedure"
+
+
+def package_prefix(code: str):
+    m = re.match(r"^([A-Za-z]{2,4})(?=\d)", code.strip())
+    return m.group(1) if m else None

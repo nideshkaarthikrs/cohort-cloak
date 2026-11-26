@@ -173,3 +173,27 @@ def test_dates_inside_encoded_payloads_are_shifted_like_plain_dates(tmp_path):
         assert len(found) == 2 and "07/02/2026" not in text and "19/02/2026" not in text
         a, b = (dt.datetime.strptime(x, "%d/%m/%Y") for x in found)
         assert (b - a).days == 12
+
+
+def test_rare_procedures_and_package_codes_are_generalised(tmp_path):
+    inp = tmp_path / "in"
+    (inp / "b").mkdir(parents=True)
+    rows = ["bill_no,uhid,patient_name,package_code,procedure,admission_date,discharge_date"]
+    data = [("ZZH-000001", "Asha Gupta", "SG010A", "Appendicectomy"), ("ZZH-000002", "Ramesh Verma", "SG010A", "Appendicectomy"),
+            ("ZZH-000003", "Sita Devi", "SG010A", "Appendicectomy"),
+            ("ZZH-000004", "Mohan Lal", "SG071A", "Whipple procedure (pancreaticoduodenectomy)"),
+            ("ZZH-000005", "Kavita Rao", "SU002B", "Cystectomy")]
+    for i, (u, n, pk, pr) in enumerate(data):
+        rows.append(f"BL/26/00{i},{u},{n},{pk},{pr},0{i + 1}/03/2026,0{i + 2}/03/2026")
+    (inp / "b" / "claims.csv").write_text("\n".join(rows) + "\n", encoding="utf-8")
+    out = tmp_path / "o"
+    pol = dict(POLICY, rare_dx_max_patients=2, rare_dx_floor=2)
+    assert run_main(inp, out, "s1", pol).returncode == 0
+    lines = (out / "sanitized" / "b" / "claims.csv").read_text(encoding="utf-8").splitlines()[1:]
+    cols = [l.split(",") for l in lines]
+    common = [c for c in cols if "Appendicectomy" in ",".join(c)]
+    assert len(common) == 3 and all("SG010A" in ",".join(c) for c in common)
+    text = "\n".join(lines)
+    assert "Whipple" not in text and "pancreatico" not in text and "Cystectomy" not in text
+    assert "SG071A" not in text and "SU002B" not in text
+    assert "SG***" in text and "[PACKAGE]" in text and text.count("Excision procedure") == 2

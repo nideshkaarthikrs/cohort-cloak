@@ -15,3 +15,4 @@ link_threshold: 10
 soft_link_margin: 3
 name_confidence_threshold: 0.6
 max_json_depth: 200
+rare_proc_mode: generalise   # rare procedures / package codes -> family / specialty prefix; "keep" leaves them (costs ~0.4 pt less medical kept on dev)

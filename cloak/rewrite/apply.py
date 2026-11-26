@@ -3,7 +3,7 @@ import re
 from collections import defaultdict
 
 _SENTINEL = re.compile(r"(\n?)@@PSN(\d+)@@")
-_GENERALISING = {"date", "age", "icd", "icd_text", "village", "district", "tehsil", "tehsil_seg", "district_seg", "pin"}
+_GENERALISING = {"date", "age", "icd", "icd_text", "proc", "village", "district", "tehsil", "tehsil_seg", "district_seg", "pin"}
 
 
 def resolve(table: list, unit_psn: dict, plan):
@@ -61,6 +61,8 @@ def _generalise(kind, fallback, payload, unit, plan) -> str:
     if kind == "icd_text":
         text = plan.icd(unit, payload)[1]
         return fallback if text is None else text
+    if kind == "proc":
+        return plan.proc(payload, fallback)
     if kind == "village":
         return plan.place(unit, payload) or fallback
     if kind == "district":
