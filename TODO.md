@@ -7,7 +7,7 @@ Status: all 7 phases done, `check_submission.py --repo . --run` prints READY TO 
 - [x] **Fresh-machine run (done 2026-11-26: clean clone of GitHub, fresh uv venv, `pip install -r requirements.txt`, output byte-identical, READY TO SUBMIT; Linux / 2-CPU still untested).** Clone the pushed repo into an empty folder, `pip install -r requirements.txt`, run `python main.py` with 2 CPUs. Nothing may depend on `.venv`, the sibling kit folder or untracked files. Repeat on Linux / Python 3.10 if available (3.10.20 already verified in a separate venv).
 - [ ] **Held-out layout test.** A teammate writes a few new document layouts without looking at our detectors; run once, record leak numbers. Every test set so far is ours, so this is the most valuable check left.
 - [ ] **Resource-limit run.** 2 CPUs (`taskset` or Docker) and a 4 GB memory cap on the dev data repeated 10x (about 430 MB peak, 23 s earlier) to confirm it stays safe.
-- [~] **Manual review (started: notes, discharge, misc look right; FHIR, Hindi prescriptions still to skim).** Skim 10-20 output files per folder, especially Hindi/Hinglish text, FHIR bundles and discharge files, for over-redaction or leftovers the metrics cannot see.
+- [~] **Manual review (notes, discharge, misc, FHIR bundle and Hindi prescription samples look right; a deeper skim of more files by a teammate is still worthwhile).** Skim 10-20 output files per folder, especially Hindi/Hinglish text, FHIR bundles and discharge files, for over-redaction or leftovers the metrics cannot see.
 
 ## Quality improvements (if time allows)
 - [ ] Spill the event table to disk (it is what grows memory on large inputs).
