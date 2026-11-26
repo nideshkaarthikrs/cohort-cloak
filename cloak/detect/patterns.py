@@ -13,6 +13,8 @@ _PHONE_RUN = re.compile(r"(?<![\w.])(?:\+|00)?(?:\d(?:[ \-]?\d){9,13}|\(\d{3}\)[
 _AADHAAR = re.compile(r"(?<![\w])[2-9]\d{3}[ \-]?\d{4}[ \-]?\d{4}(?![\w]|[ \-]?\d)")
 # after an Aadhaar label: 12 digits with scanner look-alikes (O, l, I) and stray spaces between them
 _AADHAAR_FUZZY = re.compile(r"(?:aadh?a+r|uid|आधार)\W{0,4}((?:[0-9OolI] {0,3}){11}[0-9OolI])(?![A-Za-z0-9])", re.I)
+# a phone label followed by ten digits: a phone whatever its first digit (an invented or mistyped number is still a number to hide)
+_PHONE_LABELLED = re.compile(r"(?i)\b(?:mob(?:ile)?|ph(?:one)?|tel(?:ephone)?|contact|cell|whats\s?app|call)\b\.?(?:\s*(?:no|number|num)\b\.?)?[\s:#\-]{0,4}((?:\+?91[ \-]?|0[ \-]?)?\d{5}[ \-]?\d{5})(?![\w]|[ \-]?\d)")
 _AADHAAR_MASK = re.compile(r"(?<![\w])[Xx*•]{4}[ \-]?[Xx*•]{4}[ \-]?\d{4}(?!\d)")
 _ABHA = re.compile(r"(?<![\w])\d{2}-\d{4}-\d{4}-\d{4}(?!\d)|(?<![\w])\d{14}(?!\d)")
 _ABHA_ADDR = re.compile(r"(?<![\w.\-])[\w.\-]+@(?:abdm|sbx)\b", re.I)
@@ -76,6 +78,8 @@ def find_hard(text: str) -> list:
             add(m.start(), m.end(), "AADHAAR")
         elif phone_core(raw) and _digits_ok_phone(raw):
             add(m.start(), m.end(), "PHONE")
+    for m in _PHONE_LABELLED.finditer(t):
+        add(m.start(1), m.end(1), "PHONE")
     for m in _AADHAAR.finditer(t):
         ctx = t[max(0, m.start() - 12):m.start()]
         raw = m.group(0)

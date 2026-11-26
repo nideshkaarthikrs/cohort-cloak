@@ -234,6 +234,8 @@ class Scrubber:
                 names.append((s, e))
                 if kind in ("subject", "rel"):
                     self.emit("name:" + kind, shadow[s:e])
+                    if not self.policy.get("ablate_names"):
+                        self.names.add(shadow[s:e])  # a name a strong cue found here is known in every other text
         for m in _GENERIC_ID.finditer(shadow):
             if sum(c.isdigit() for c in m.group(0)) >= 4 and m.group(1).casefold() not in medical_words() \
                     and not overlaps_guard(guards, m.start(), m.end()):

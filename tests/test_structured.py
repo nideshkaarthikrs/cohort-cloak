@@ -144,3 +144,14 @@ def test_patient_name_key_inside_clinical_container_is_still_a_patient(tmp_path)
     out = _run(tmp_path, {"lab/bulk.json": json.dumps(doc)})
     text = _only(out, "lab")
     assert "Unseenperson" not in text and "ZZH-0077001" not in text and "Hb" in text
+
+
+def test_fhir_telecom_value_is_a_phone_or_email_by_its_system_whatever_the_digits(tmp_path):
+    bundle = {"resourceType": "Patient", "telecom": [
+        {"system": "phone", "value": "0 55518 03503"},
+        {"system": "sms", "value": "55518 03504"},
+        {"system": "email", "value": "x.y@example.invalid"},
+        {"system": "url", "value": "https://example.invalid/portal"}]}
+    text = _only(_run(tmp_path, {"f/b.json": json.dumps(bundle)}), "f")
+    assert "55518" not in text and "x.y@" not in text
+    assert "https://example.invalid/portal" in text

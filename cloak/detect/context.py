@@ -1,5 +1,6 @@
 """Context cues for names in prose: relation, honorific, cue words, particles, senders, name-near-phone."""
 import re
+import unicodedata
 
 from cloak.detect.names import Gazetteer, is_non_name
 
@@ -35,12 +36,50 @@ _PARTICLE = re.compile(r"\b(" + _LATIN_TOK + r")\s+(?:ka|ki|ke|ne|ko|se)\b")
 _POSSESSIVE_KA = re.compile(r"\b([A-Z][a-z]{2,})\s+(?:ka|ki|ke|ne|ko)\s+(?:BP|bp|pulse|temp|sugar|RBS|bukhar|dard|tabiyat|condition|report)\b")
 _WHATSAPP = re.compile(r"(?m)^\s*\[[^\]\n]{4,32}\]\s*([^:\n\[\]]{2,40}?)\s*:")
 _WHATSAPP2 = re.compile(r"(?m)^\s*\d{1,2}/\d{1,2}/\d{2,4},?\s+\d{1,2}:\d{2}(?:\s*[ap]m)?\s+-\s+([^:\n]{2,40}?):")
-_DEVA_HON_PRE_SUBJ = re.compile(r"(?:श्रीमती|श्री|सुश्री|कुमारी|स्व\.?|रोगी|मरीज़|मरीज)\s+(" + _DEVA_RUN + ")")
+_DEVA_HON_PRE_SUBJ = re.compile(r"(?:श्रीमती|श्री|सुश्री|कुमारी|स्व\.?)\s+(" + _DEVA_RUN + ")")
+# a plain noun for "patient" is not a title: a name after it must be one we know, or `मरीज से बात हुई` loses ordinary words
+_DEVA_PATIENT_NOUN = re.compile(r"(?:रोगी|मरीज़|मरीज)\s+(" + _DEVA_RUN + ")")
 _DEVA_HON_PRE_REL = re.compile(r"(?:पुत्र|पुत्री|पत्नी|पति|पिता|माता|भाई|बहन)\s+(" + _DEVA_RUN + ")")
 _DEVA_HON_POST = re.compile(r"(" + _DEVA_TOK + r")\s+(?:जी|साहब|साहिब|भाई|भैया|दीदी|अम्मा|बहन|बाबू)(?![\u0900-\u097f])")
 _DEVA_PARTICLE = re.compile(r"(" + _DEVA_TOK + r")\s+(?:को|का|की|ने|के)(?![\u0900-\u097f])")
 _DEVA_LABEL_VALUE = re.compile(r"(?:नाम|का नाम)\s*[:\-]\s*(" + _DEVA_RUN + ")")
 _NEAR_PHONE_LEFT = re.compile(r"(" + _NAMERUN + r")[\s,:\-(]*(?i:(?:(?:mob(?:ile)?|ph(?:one)?|contact|tel|no)\.?[\s:#\-]*)*)$")
+
+_DEAR = re.compile(r"\bDear\s+(?:(?:Mr|Mrs|Ms|Shri|Smt)\.?\s+)?(" + _NAMERUN + r"(?:\s*,\s*" + _NAMERUN + r")?)(?=\s*[,:!.\n]|\s*$)")
+
+# a patient banner: `Name | ID | 71 yrs`, `Name   UHID X   DOB ...` (any script): a name field, then an ID, a DOB label or an age
+_BANNER_SPLIT = re.compile(r"\s*\|\s*|\t|[ ]{3,}")
+_BANNER_ID = re.compile(r"(?<![\w/\-])(?=[A-Za-z0-9/\-]*[A-Za-z])(?=[A-Za-z0-9/\-]*\d{3})[A-Za-z0-9][A-Za-z0-9/\-]{4,24}(?![\w/\-])")
+_BANNER_DATE = re.compile(r"\d{1,2}-[A-Za-z]{3,9}-\d{2,4}")
+_BANNER_DOB = re.compile(r"(?i)\b(?:dob|d\.o\.b|date\s+of\s+birth|born)\b")
+_BANNER_AGE = re.compile(r"(?i)\b\d{1,3}\s*(?:yrs?|years?|y/o|वर्ष|वर्षे|साल|வயது|ವರ್ಷ|వయస్సు|বছর|વર્ષ|വയസ്സ്)|\b\d{1,3}\s*/\s*[MF]\b")
+
+
+def _name_like(seg: str) -> bool:
+    words = seg.split()
+    if not (1 <= len(words) <= 4) or not (2 <= len(seg) <= 40):
+        return False
+    return all(unicodedata.category(c)[0] in "LM" or c in ".'-," for c in seg.replace(" ", ""))
+
+
+def _banner_names(text: str):
+    """Spans of the first field of lines that look like a patient banner."""
+    out = []
+    for lm in re.finditer(r"[^\n]+", text):
+        line = lm.group(0)
+        if len(line) > 200:
+            continue
+        lead = len(line) - len(line.lstrip())
+        parts = _BANNER_SPLIT.split(line.strip(), maxsplit=1)
+        if len(parts) != 2 or not _name_like(parts[0]):
+            continue
+        rest = _BANNER_DATE.sub(" ", parts[1])
+        feats = bool(_BANNER_ID.search(rest)) + bool(_BANNER_DOB.search(rest)) + bool(_BANNER_AGE.search(rest))
+        if feats >= 2:
+            a = lm.start() + lead
+            out.append((a, a + len(parts[0])))
+    return out
+
 
 def _trim(start: int, end: int, text: str):
     """Trim non-name words from both ends of a candidate span; None if nothing is left."""
@@ -92,6 +131,23 @@ def cue_name_spans_typed(text: str, phone_spans=(), dictionary=None) -> list:
                _DEVA_HON_PRE_SUBJ, _DEVA_LABEL_VALUE):
         for m in rx.finditer(text):
             add(m, "subject")
+    for rx in (_DEAR,):
+        for m in rx.finditer(text):
+            add(m, "subject")
+    for a, b in _banner_names(text):
+        sp = _trim(a, b, text)
+        if sp:
+            out.append((sp[0], sp[1], "subject"))
+    for m in _DEVA_PATIENT_NOUN.finditer(text):
+        toks = list(re.finditer(_DEVA_TOK, m.group(1)))
+        keep = 0
+        while keep < len(toks) and (Gazetteer.known(toks[keep].group(0)) or (dictionary is not None and dictionary.matches_word(toks[keep].group(0)))):
+            keep += 1
+        if keep:
+            a = m.start(1)
+            sp = _trim(a + toks[0].start(), a + toks[keep - 1].end(), text)
+            if sp:
+                out.append((sp[0], sp[1], "subject"))
     for m in _CUE.finditer(text):
         label = text[m.start():m.start(1)].casefold()
         add(m, "subject" if ("patient" in label or "pt name" in label or "report of" in label) else "rel")

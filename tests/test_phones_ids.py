@@ -104,3 +104,20 @@ def test_labelled_aadhaar_with_stray_scanner_spaces_and_letters():
         assert [s.kind for s in spans] == ["AADHAAR"], raw
     assert find_hard("UID 1234 5") == []  # too short
     assert find_hard("dose 6435 I 969 989O mg") == []  # no Aadhaar label nearby
+
+
+def test_explicit_country_code_makes_any_ten_digits_a_phone_but_bare_numbers_still_need_6_to_9():
+    assert phone_core("+91 55518 03410") == "5551803410"
+    assert phone_core("+91-55518-03410") == "5551803410"
+    assert phone_core("0091 55518 03410") == "5551803410"
+    assert phone_core("55518 03410") is None
+    assert phone_core("0 55518 03410") is None
+    assert phone_core("+91 98765 43210") == "9876543210"
+    assert [s.kind for s in find_hard("Contact +91 55518 03720 today")] == ["PHONE"]
+
+
+def test_ten_digits_after_a_phone_label_are_a_phone_whatever_the_first_digit():
+    for t in ("D/o Renu   Mob 55518-03410", "Contact: 55518 03410", "Tel 05551803410", "Phone no. 5551803410 ok", "whatsapp 55518-03410"):
+        assert [s.kind for s in find_hard(t)] == ["PHONE"], t
+    for t in ("Lot no 5551803410", "Dose 5551803410", "Ref 55518 03410", "Bill 5551803410 paid"):
+        assert find_hard(t) == [], t

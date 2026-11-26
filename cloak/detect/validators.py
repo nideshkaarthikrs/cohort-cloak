@@ -13,14 +13,18 @@ def ascii_digits(s: str) -> str:
 
 def phone_core(s: str):
     """Return the 10-digit Indian mobile/landline core of a candidate string, or None."""
-    d = re.sub(r"\D", "", ascii_digits(s))
-    if len(d) == 13 and d.startswith("0091"):
+    t = ascii_digits(s)
+    d = re.sub(r"\D", "", t)
+    explicit = False  # an explicit country code is enough: such a number is a phone whatever its first digit
+    if len(d) == 14 and d.startswith("0091"):
+        d, explicit = d[4:], True
+    elif len(d) == 13 and d.startswith("0091"):
         d = d[3:]
-    if len(d) == 12 and d.startswith("91"):
-        d = d[2:]
+    elif len(d) == 12 and d.startswith("91"):
+        d, explicit = d[2:], bool(re.match(r"\s*\+", t))
     elif len(d) == 11 and d.startswith("0"):
         d = d[1:]
-    if len(d) == 10 and d[0] in "6789":
+    if len(d) == 10 and (d[0] in "6789" or explicit):
         return d
     return None
 

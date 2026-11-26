@@ -122,3 +122,46 @@ def test_scrubbing_a_huge_line_with_thousands_of_spans_stays_fast():
     out = scrub(text)
     assert time.monotonic() - t0 < 6.0
     assert "9876" not in out and "Quillfeather" not in out
+
+
+def test_banner_line_name_before_id_and_age_is_found_in_any_script():
+    for banner, name in (("आँचल वायलकर   |   SV004810   |   71 वर्ष", "वायलकर"),
+                         ("கவின் செல்வரொளி   |   26/VM/4823   |   68 வயது", "செல்வரொளி"),
+                         ("Sahithi Vennuri   |   NC-26-4836   |   65 Yrs", "Vennuri"),
+                         ("V. Khairuli    UHID SV004828    DOB 20 September 1993", "Khairuli")):
+        out = scrub("Some Hospital\nWard record   03/11/2026\n" + banner + "\n\nNote follows.", doc=True)
+        assert name not in out, banner
+
+
+def test_banner_line_rule_leaves_lab_rows_and_hospital_headers_alone():
+    for line in ("Serum creatinine      0.9 mg/dL       0.6-1.2 mg/dL",
+                 "FINAL REPORT               Page 1 of 1",
+                 "Saanvari Community Hospital   |   Laboratory Medicine",
+                 "Hospital Billing   |   Ward 3   |   Bed 12",
+                 "Admission date   12-Apr-2026   |   Discharge   15-Apr-2026"):
+        assert scrub(line, doc=True) == line
+
+
+def test_the_name_in_a_salutation_goes_even_as_surname_comma_given():
+    out = scrub("Dear Mozhivel, Iniyan,\nYour follow-up is booked with Dr Harjit Nerwal.")
+    assert "Mozhivel" not in out and "Iniyan" not in out
+    assert scrub("Dear Sir,\nPlease find the report.") == "Dear Sir,\nPlease find the report."
+    assert scrub("Dear Patient,\nYour visit is booked.") == "Dear Patient,\nYour visit is booked."
+
+
+def test_a_name_found_by_a_cue_in_one_text_is_known_in_later_texts():
+    sc = Scrubber(POLICY)
+    sc.scrub_text("Dear Quillfeather,\nSee you soon.", doc_labels=True)
+    out, _ = sc.scrub_text("the visit with quillfeather went well, said Quillfeather.", doc_labels=True)
+    assert "uillfeather" not in out
+    out2, _ = Scrubber(POLICY).scrub_text("the visit with quillfeather went well, said Quillfeather.", doc_labels=True)
+    assert "Quillfeather" in out2  # a fresh scrubber knows nothing
+
+
+def test_hindi_patient_noun_does_not_swallow_ordinary_words_but_still_cues_known_names():
+    for t in ("सुबह की पाली में मरीज से बात हुई। रात में आराम मिला।",
+              "उपरोक्त मरीज आज हमारे विभाग में जाँच के लिए आए थे।",
+              "रोगी की हालत स्थिर है।"):
+        assert scrub(t) == t
+    assert "राम" not in scrub("मरीज राम को बुखार है।")
+    assert "सुमन" not in scrub("श्रीमती सुमन वर्मा आज आईं।")  # an honorific still cues any name

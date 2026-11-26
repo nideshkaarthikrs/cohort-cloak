@@ -292,7 +292,12 @@ def transform_json(data, scrubber, locs=()):
                     count[0] += 1
                 else:
                     nk = k
-                out[nk] = walk(x, k, _child_ctx(k, x, ctx, v) if isinstance(x, (dict, list)) else ctx, path + (k,))
+                child = _child_ctx(k, x, ctx, v) if isinstance(x, (dict, list)) else ctx
+                if k == "value" and isinstance(x, str):  # a FHIR ContactPoint: its system says what the value is
+                    kind = {"phone": "phone", "sms": "phone", "fax": "phone", "pager": "phone", "email": "email"}.get(str(v.get("system", "")).casefold())
+                    if kind:
+                        child = _Ctx(kind, ctx.person, ctx.relative, ctx.ref)
+                out[nk] = walk(x, k, child, path + (k,))
         finally:
             scrubber.dx_pending = prev_dx
         if isinstance(rt, str) and out.get("birthDate") == "[DOB]":
