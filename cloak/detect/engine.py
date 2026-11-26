@@ -1,4 +1,5 @@
 """Text scrubber: hard identifiers, known IDs/shapes, known names, label-anchored fields, context cues."""
+import bisect
 import re
 from collections import Counter
 
@@ -252,9 +253,21 @@ class Scrubber:
                     names.append((a, a + len(m.group(1))))
         names = [(s, e) for s, e in merge_spans(names, shadow)]
         spans = list(fixed)
-        places = [(a, b) for a, b, ph in fixed if ph == "[VILLAGE]" or (isinstance(ph, tuple) and ph[0] == "village")]
+        places = {(a, b) for a, b, ph in fixed if ph == "[VILLAGE]" or (isinstance(ph, tuple) and ph[0] == "village")}
+        by_start = sorted((a, b) for a, b, _ in fixed)
+        fstarts = [a for a, _ in by_start]
+        pmax, top = [], 0
+        for _, b in by_start:
+            top = max(top, b)
+            pmax.append(top)
         for s, e in names:
-            hit = [(a, b) for a, b, _ in fixed if s < b and a < e]
+            hit = []  # fixed spans overlapping [s, e): scan back from the last start < e while some end can still reach s
+            j = bisect.bisect_left(fstarts, e) - 1
+            while j >= 0 and pmax[j] > s:
+                if by_start[j][1] > s:
+                    hit.append(by_start[j])
+                j -= 1
+            hit.sort()
             if not hit:
                 spans.append((s, e, "[NAME]"))
             elif all(h in places for h in hit):  # a surname that doubles as a village must not hide the given names before it
@@ -466,12 +479,15 @@ class Scrubber:
     @staticmethod
     def _resolve(spans):
         """Drop overlaps (earlier-listed spans win)."""
-        kept = []
+        kept, starts = [], []  # kept never overlap, so only the two neighbours of a candidate can
         for s, e, ph in spans:
-            if e <= s or any(s < b and a < e for a, b, _ in kept):
+            if e <= s:
                 continue
-            kept.append((s, e, ph))
-        kept.sort()
+            i = bisect.bisect_left(starts, s)
+            if (i > 0 and kept[i - 1][1] > s) or (i < len(kept) and kept[i][0] < e):
+                continue
+            starts.insert(i, s)
+            kept.insert(i, (s, e, ph))
         return kept
 
     def _scrub_lines(self, text: str):

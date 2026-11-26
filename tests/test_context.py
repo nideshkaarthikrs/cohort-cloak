@@ -113,3 +113,12 @@ def test_cue_spans_stay_fast_and_correct_on_huge_single_lines():
         found = {text[s:e] for s, e, _k in spans}
         assert "Asha Verma" in found
         assert "Ramesh Kumar" in found
+
+
+def test_scrubbing_a_huge_line_with_thousands_of_spans_stays_fast():
+    import time
+    text = "Patient Zorbak Quillfeather. " + "Ram 9876 5012 34 ,PIN 411001 " * 7000
+    t0 = time.monotonic()
+    out = scrub(text)
+    assert time.monotonic() - t0 < 6.0
+    assert "9876" not in out and "Quillfeather" not in out

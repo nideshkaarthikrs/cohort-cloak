@@ -3,6 +3,7 @@
 Operates on text whose Indic digits are folded to ASCII one-for-one, so offsets map back
 to the original string unchanged.
 """
+import bisect
 import re
 
 from cloak.detect.validators import ascii_digits, phone_core
@@ -45,12 +46,13 @@ def find_hard(text: str) -> list:
     found = []
     taken = []
 
-    def free(s, e):
-        return not any(s < b and a < e for a, b in taken)
+    def free(s, e):  # taken never overlaps itself, so only a candidate's two neighbours matter
+        i = bisect.bisect_left(taken, (s, e))
+        return not ((i > 0 and taken[i - 1][1] > s) or (i < len(taken) and taken[i][0] < e))
 
     def add(s, e, kind, conf=1.0):
         if free(s, e):
-            taken.append((s, e))
+            bisect.insort(taken, (s, e))
             found.append(Span(s, e, kind, conf))
 
     for m in _PMJAY.finditer(t):
