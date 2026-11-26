@@ -44,11 +44,11 @@ def _clean_component(name: str, names=None, ids=None) -> str:
             j += 1
         if any(flags[i:j + 1]):
             k = i - 1
-            while k >= 0 and i - k <= 3 and _name_like(toks[k]) and not is_name[k]:
+            while k >= 0 and i - k <= 4 and (is_name[k] or _name_like(toks[k])):
                 is_name[k], idish[k] = True, False
                 k -= 1
             k = j + 1
-            while k < len(toks) and k - j <= 2 and _name_like(toks[k]) and not is_name[k]:
+            while k < len(toks) and k - j <= 3 and (is_name[k] or _name_like(toks[k])):
                 is_name[k], idish[k] = True, False
                 k += 1
         i = j + 1

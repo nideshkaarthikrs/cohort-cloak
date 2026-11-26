@@ -322,6 +322,10 @@ class Scrubber:
 
     _PIN_LABELLED = re.compile(r"(?<![\w])(?:p[1i]n(?:\s*code)?|postal\s*(?:code|zone)|post\s*code|zone|zip|da+k|dak\s*(?:code|pin)|पिन(?:\s*कोड)?|डाक)\s*[:=#\-]?\s*([1-9]\d{5})(?!\d)", re.I)
     _PIN_AFTER_PLACE = re.compile(r"(?<![\w])([A-Z][A-Za-z]{3,})[ \t\"',/;:\-(^|]+([1-8]\d{5})(?!\d)")
+    _PIN_BARE = re.compile(r"(?<![\w.,/\-:₹])([1-8]\d{5})(?![\w]|[.,]\d|\s*(?:/|per\b|cells?\b|cumm\b|mm\b|mg\b|ml\b|iu\b))")
+    _NOT_A_PIN_CONTEXT = frozenset({"rs", "inr", "count", "total", "amount", "bill", "paid", "cost", "fee", "charges", "platelet",
+                                    "platelets", "wbc", "rbc", "cells", "sample", "id", "no", "number", "ref", "ipd", "opd",
+                                    "invoice", "receipt", "claim", "balance", "due"})
     _VILLAGE_CUE = re.compile(r"(?<![\w])(?i:village|vill|gaon|gaanv|gram|ghar|nivasi|niwasi|r/o|resident\s+of|native\s+of)\.?[ \t:,\-]+"
                               r"([A-Z][a-z]{3,}(?:[ \t]+[A-Z][a-z]{3,})?)|(?:गाँव|गांव|ग्राम|निवासी)[ \t:,\-]+([ऀ-ॿ]{3,})")
 
@@ -329,6 +333,17 @@ class Scrubber:
         """6-digit PIN codes in prose: labelled, or right after a capitalised place word. Never lab values."""
         blocked = [(a, b) for a, b, k in guards if k in ("frequency", "vital", "range", "dose", "loinc", "doctor")]
         out = []
+        for m in self._PIN_BARE.finditer(shadow):  # a bare 6-digit number that is not a count, amount or reference
+            if shadow.strip() == m.group(1):
+                continue  # a cell or value that is only a number: an amount or a count, not an address
+            prev = re.findall(r"[A-Za-z]+", shadow[max(0, m.start() - 30):m.start()])[-2:]
+            if any(w.casefold() in self._NOT_A_PIN_CONTEXT or w.casefold() in medical_words() for w in prev):
+                continue
+            if any(m.start(1) < b and a < m.end(1) for a, b in blocked):
+                continue
+            d = m.group(1)
+            fb = d[:3] + "***" if self.policy.get("pin_mode", "prefix3") == "prefix3" else "[PIN]"
+            out.append((m.start(1), m.end(1), ("pin", d, fb)))
         for rx, grp in ((self._PIN_LABELLED, 1), (self._PIN_AFTER_PLACE, 2)):
             for m in rx.finditer(shadow):
                 s, e = m.start(grp), m.end(grp)
@@ -428,7 +443,29 @@ class Scrubber:
             new, n = self._scrub_line(line)
             out_lines.append(new)
             total += n
+        total += self._continued_name_lines(text.split("\n"), out_lines)
         return "\n".join(out_lines), total
+
+    _ONE_WORD_LINE = re.compile(r"^\s*([A-Z][a-z]{3,})\s*$")
+
+    def _continued_name_lines(self, src: list, out: list) -> int:
+        """A lone capitalised word on a line next to a line that is only a redacted name continues that name."""
+        added = 0
+        for i, line in enumerate(out):
+            if line.strip() != "[NAME]":
+                continue
+            for step in (-1, 1):
+                j = i + step
+                while 0 <= j < len(src) and j - i in range(-3, 4):
+                    m = self._ONE_WORD_LINE.match(src[j])
+                    w = m.group(1) if m else ""
+                    if (not m or out[j] != src[j] or is_non_name(w) or w.casefold() in medical_words()
+                            or w.casefold() in words_of("hinglish_stopwords.txt") or w.casefold() in words_of("filename_words.txt")):
+                        break
+                    out[j] = "[NAME]"
+                    added += 1
+                    j += step
+        return added
 
     def _scrub_line(self, line: str):
         marks = list(_LABEL.finditer(line))

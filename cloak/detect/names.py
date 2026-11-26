@@ -182,6 +182,8 @@ class Gazetteer:
                 out.append((toks[i][0], toks[i + 1][1]))
             elif b in ("surname", "both") and free[i + 1] and plain(i):
                 out.append((toks[i][0], toks[i + 1][1]))
+            elif b in ("given", "both") and free[i + 1] and plain(i):
+                out.append((toks[i][0], toks[i + 1][1]))  # unknown first name before a list given name
             elif a is None and b is None and plain(i) and plain(i + 1):
                 out.append((toks[i][0], toks[i + 1][1]))  # fail closed: two unknown capitalised words side by side
         return merge_spans(out, text)

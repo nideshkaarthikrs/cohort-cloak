@@ -135,3 +135,22 @@ def test_post_office_label_words_mark_pins(tmp_path):
 def test_devanagari_patient_cue_and_vcard_birthday(tmp_path):
     out = run(tmp_path, {"a.txt": "रोगी क़ाज़िरवी मिहिलेश बरुआ को बुखार है।\nBDAY:1974-07-07\n"})["a.txt"]
     assert "क़ाज़िरवी" not in out and "1974-07-07" not in out
+
+
+def test_bare_six_digit_pin_in_prose_but_not_lab_counts_or_amounts(tmp_path):
+    out = run(tmp_path, {"a.txt": "Mail goes through 402955 for the hamlet.\nPlatelet count 150000 per cumm.\n"
+                                  "Bill total Rs 245000 paid. WBC 110000 noted.\n"})["a.txt"]
+    assert "402955" not in out
+    assert "150000" in out and "245000" in out and "110000" in out
+
+
+def test_unknown_first_name_next_to_a_known_given_name_is_a_name(tmp_path):
+    out = run(tmp_path, {"a.txt": "C7 | Qwenzitha Neeraj / Mohan (mother) | Iron deficiency anaemia\n",
+                         "Attach_Qwenzitha Neeraj Vadakil_VL-26-OP-447012.txt": "ok\n"})
+    assert "Qwenzitha" not in out["a.txt"]
+    assert not any("Qwenzitha" in k for k in out)
+
+
+def test_name_continued_on_unlabelled_lines_is_redacted(tmp_path):
+    out = run(tmp_path, {"a.txt": "Clinic header\nName begins below, continuation has no label:\nElarosa\nMinetta\nDovarkar\nNext of kin: Lucien Dovarkar (father)\nPulse 96 beats/min\n"})["a.txt"]
+    assert "Elarosa" not in out and "Minetta" not in out and "Pulse 96" in out
