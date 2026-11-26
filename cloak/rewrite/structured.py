@@ -216,13 +216,9 @@ def transform_json(data, scrubber, locs=()):
                     count[0] += 1
                     return encode_b64_text(ATTACHMENT_PLACEHOLDER)
             else:
-                saved, scrubber.table = scrubber.table, None  # no PSN sentinel inside an encoded payload
-                try:
-                    new, n = scrubber.scrub_text(text, doc_labels=True)
-                finally:
-                    scrubber.table = saved
+                new, n = scrubber.scrub_decoded(text, doc_labels=True)
                 count[0] += n
-                return encode_b64_text(new)
+                return scrubber.wrap_encoded(new, encode_b64_text)
         if (scrubber.table is not None and scrubber.dx_pending and _nk(key or "") in ("display", "text")
                 and not looks_b64(v)):
             count[0] += 1

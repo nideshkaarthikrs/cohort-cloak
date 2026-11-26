@@ -1,7 +1,12 @@
 """Blocking: candidate pairs from shared IDs, phones, DOB and name-token skeletons."""
+import re
 from itertools import combinations
 
 MAX_BLOCK = 400
+
+
+def _cons(t: str) -> str:
+    return re.sub(r"[aeiou]", "", t)
 
 
 def blocks(evidences: list) -> dict:
@@ -15,6 +20,9 @@ def blocks(evidences: list) -> dict:
         for t in ev.tokens:
             if len(t) >= 3:
                 keys.add(("tok", t))
+            c = _cons(t)  # Devanagari keeps schwas Latin spellings drop, so vowel-free keys catch those pairs
+            if len(c) >= 3:
+                keys.add(("ctok", t[0], c))
         for k in keys:
             index.setdefault(k, []).append(i)
     return index

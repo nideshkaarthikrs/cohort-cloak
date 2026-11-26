@@ -151,3 +151,11 @@ def test_end_to_end_psn_present_consistent_and_secret_dependent(tmp_path):
     assert "BP 128/82" in nameless
     other = {json.loads(l)["patient"] for l in (tmp_path / "o2" / "records.jsonl").read_text().splitlines()}
     assert not (other & {p for p in asha | ramesh})
+
+
+def test_devanagari_rendering_with_vowel_drift_is_still_a_candidate():
+    """Latin 'Siddiqui' and Devanagari 'सिद्दीक़ी' skeletonise to different strings; blocking must still pair them."""
+    a = reg("Rukhsana Siddiqui", "Amarganj Khurd", 74, "03/02/1952", gender="F", uhid="ZZH-000077")
+    b = ev(("patient_name", "रुख़साना सिद्दीक़ी"), ("village", "अमरगंज खुर्द"), ("age", "74"), ("date_event", "10/03/2026"))
+    parts, _ = partition([a, b])
+    assert parts == {frozenset({0, 1})}

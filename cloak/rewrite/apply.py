@@ -31,6 +31,8 @@ def resolve(table: list, unit_psn: dict, plan):
                     break
         for i in idxs:
             _fid, _rec, kind, fallback, payload = table[i]
+            if kind == "enc":
+                continue  # filled below, once the placeholders inside it are resolved
             if kind in ("name", "mrn", "append"):
                 if i == target:
                     repl[i] = f"Patient: {psn}" if kind == "append" else psn
@@ -41,6 +43,10 @@ def resolve(table: list, unit_psn: dict, plan):
             repl[i] = _generalise(kind, fallback, payload, key, plan)
             if repl[i] != fallback:
                 touched.add(key)
+    for i, entry in enumerate(table):  # encoded payloads: inner placeholders have lower indices, so index order works
+        if entry[2] == "enc":
+            encode, inner = entry[4]
+            repl[i] = encode(substitute(inner, repl))
     return repl, placed, touched
 
 

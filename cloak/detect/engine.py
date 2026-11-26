@@ -50,6 +50,7 @@ class Scrubber:
         self.stats = Counter()
         # Phase 4: event sink (per-record evidence) and PSN placement table, active only in the final render
         self.sink = None        # list of (fid, rec, kind, value) or None
+        self.in_payload = 0     # >0 while scrubbing the decoded text of an encoded value
         self.table = None       # list of (fid, rec, kind, fallback) or None
         self.fid = 0
         self.rec = "doc"
@@ -66,6 +67,8 @@ class Scrubber:
             self.sink.append((self.fid, self.rec, kind, str(value)))
 
     def sentinel(self, kind: str, fallback: str, payload=None) -> str:
+        if self.in_payload and kind in ("name", "mrn", "append"):
+            return fallback  # a pseudonym is never written inside an encoded payload
         self.table.append((self.fid, self.rec, kind, fallback, payload))
         return f"@@PSN{len(self.table) - 1}@@"
 
@@ -236,20 +239,28 @@ class Scrubber:
             if not decode.detect(text):
                 continue
             plain = decode.run(text)
-            new, n = self._scrub_plain_no_enc(plain)
+            new, n = self.scrub_decoded(plain)
             if n:
-                text = encode(new)
+                text = self.wrap_encoded(new, encode)
                 total += n
         return text, total
 
-    def _scrub_plain_no_enc(self, text: str):
-        saved, saved_table = self._scrub_encoded, self.table
+    def scrub_decoded(self, text: str, doc_labels: bool = False):
+        """Scrub the decoded text of an encoded value. Dates, ages and codes still go through the privacy plan."""
+        saved = self._scrub_encoded
         self._scrub_encoded = lambda t: (t, 0)  # prevent recursion into the same layers
-        self.table = None                      # no placement sentinels inside re-encoded text
+        self.in_payload += 1
         try:
-            return self._scrub_plain(text)
+            return self.scrub_text(text, doc_labels=doc_labels) if doc_labels else self._scrub_plain(text)
         finally:
-            self._scrub_encoded, self.table = saved, saved_table
+            self._scrub_encoded = saved
+            self.in_payload -= 1
+
+    def wrap_encoded(self, inner: str, encode) -> str:
+        """Re-encode once the placeholders inside `inner` are resolved (learn pass: encode directly)."""
+        if self.table is None:
+            return encode(inner)
+        return self.sentinel("enc", "", (encode, inner))
 
     def _privacy_spans(self, shadow: str, guards, hard) -> list:
         """Dates, ages and ICD codes (with their display text) as generalisation spans."""

@@ -153,3 +153,23 @@ def test_fhir_birthdate_redaction_keeps_the_bundle_valid(tmp_path):
     assert "birthDate" not in pat and pat["_birthDate"]["extension"][0]["valueCode"] == "masked"
     assert run_main(inp, tmp_path / "o2", "s", dict(POLICY, dob_mode="year")).returncode == 0
     assert json.loads((tmp_path / "o2/sanitized/f/b.json").read_text())["entry"][0]["resource"]["birthDate"] == "1978"
+
+
+def test_dates_inside_encoded_payloads_are_shifted_like_plain_dates(tmp_path):
+    import base64
+    from urllib.parse import quote, unquote
+    inp = tmp_path / "in"
+    make(inp)
+    note = "Admitted 07/02/2026 and discharged 19/02/2026 for review."
+    (inp / "r" / "att.json").write_text(json.dumps({"visits": [
+        {"patient_ref": "ZZH-000001", "patient": {"name": "Asha Gupta"}, "visit_date": "2026-02-15",
+         "attachment": base64.b64encode(note.encode()).decode(), "memo": quote(note, safe="")}]}), encoding="utf-8")
+    out = tmp_path / "o"
+    assert run_main(inp, out, "s1", POLICY).returncode == 0
+    doc = json.loads((out / "sanitized" / "r" / "att.json").read_text(encoding="utf-8"))
+    v = doc["visits"][0]
+    for text in (base64.b64decode(v["attachment"]).decode(), unquote(v["memo"])):
+        found = re.findall(r"\d\d/\d\d/\d{4}", text)
+        assert len(found) == 2 and "07/02/2026" not in text and "19/02/2026" not in text
+        a, b = (dt.datetime.strptime(x, "%d/%m/%Y") for x in found)
+        assert (b - a).days == 12
