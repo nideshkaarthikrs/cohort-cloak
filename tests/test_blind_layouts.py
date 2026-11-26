@@ -230,3 +230,20 @@ def test_unknown_header_column_of_repeating_six_digit_codes_is_a_pin(tmp_path):
         assert pin not in text, pin
     assert "411***" in text or "[PIN]" in text
 
+
+
+def test_unknown_header_column_of_repeating_place_names_is_a_village(tmp_path):
+    places = ["Quenzo", "Mettupalli", "Quenzo", "Rumtekk", "Mettupalli", "Quenzo", "Rumtekk", "Mettupalli", "Quenzo", "Rumtekk"]
+    rows = ["Tag,Zq,Dx"] + [f"Pt{i},{p},Fever" for i, p in enumerate(places)]
+    out = run(tmp_path, {"x/c.csv": "\n".join(rows) + "\n"})
+    text = out["x/c.csv"]
+    for p in ("Quenzo", "Mettupalli", "Rumtekk"):
+        assert p not in text, p
+    assert text.count("Fever") == 10
+
+
+def test_unknown_header_column_of_clinical_words_is_kept(tmp_path):
+    vals = ["Cardiology", "Neurology", "Cardiology", "Orthopedics", "Neurology", "Cardiology", "Orthopedics", "Neurology", "Cardiology", "Orthopedics"]
+    rows = ["Tag,Zq"] + [f"Pt{i},{v}" for i, v in enumerate(vals)]
+    out = run(tmp_path, {"x/d.csv": "\n".join(rows) + "\n"})
+    assert out["x/d.csv"].count("Cardiology") == 4 and "Neurology" in out["x/d.csv"]

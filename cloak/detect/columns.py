@@ -5,7 +5,8 @@ from functools import lru_cache
 
 from rapidfuzz import fuzz, process
 
-from cloak.detect.lexicon import header_roles
+from cloak.detect.lexicon import header_roles, medical_words
+from cloak.detect.names import Gazetteer, is_non_name
 from cloak.detect.patterns import find_hard
 
 HARD_KIND_ROLE = {"PHONE": "phone", "AADHAAR": "aadhaar", "ABHA": "abha", "PAN": "pan", "EMAIL": "email",
@@ -120,6 +121,11 @@ def infer_roles(header, rows, sample: int = 300) -> list:
                 pins = [c for c in cells if re.fullmatch(r"[1-8]\d{5}", c)]
                 if len(pins) / n >= 0.9 and len(set(pins)) / len(pins) <= 0.7:
                     role = "pin"  # unknown header, repeating 6-digit codes: postal codes repeat, amounts and references do not
+            if role is None and n >= 8:
+                places = [c for c in cells if re.fullmatch(r"[A-Z][a-z]{3,}", c)
+                          and not (is_non_name(c) or c.casefold() in medical_words() or Gazetteer.known(c))]
+                if len(places) / n >= 0.9 and len(set(places)) / len(places) <= 0.5:
+                    role = "village"  # unknown header, a few capitalised words repeating: places repeat, free text and names do not
             if role is None and n >= 3:
                 names = [c for c in cells if looks_like_name(c)]
                 multi = sum(1 for c in names if " " in c)
