@@ -82,3 +82,56 @@ def test_village_cues_and_surname_first_commas(tmp_path):
                                   "Row: Qaisarganj, Tsering Dolmaa   BP 140/90 mmHg\n"})
     t = out["n.txt"]
     assert "Quenzoli" not in t and "276404" not in t and "Qaisarganj" not in t and "140/90 mmHg" in t
+
+
+def test_odd_punctuation_ids_are_learned_from_labels_and_found_everywhere(tmp_path):
+    out = run(tmp_path, {
+        "a.txt": "Patient chart\nMRN   NC~4137~Q   Phone 9814402217\n",
+        "b.sql": "INSERT INTO t VALUES ('NC~4137~Q','Dr note','x'); -- ref TR{26}.4211 ; ZC@4248/26\n",
+        "c.txt": "Reg no: TR{26}.4211\nUHID: ZC@4248/26\n"})
+    blob = "\n".join(out.values())
+    for v in ("NC~4137~Q", "TR{26}.4211", "ZC@4248/26"):
+        assert v not in blob, v
+
+
+def test_pins_in_quotes_zones_and_caret_separated_fields(tmp_path):
+    out = run(tmp_path, {"a.txt": 'reach = ["Nizpurax", "401307"]\nresidence="Velmorax" zone=401101\n'
+                                  "returning to Puthenvelix, postal zone 401822.\nPID|1|Tilmorax^402852\n"})
+    blob = out["a.txt"]
+    for pin in ("401307", "401101", "401822", "402852"):
+        assert pin not in blob, pin
+
+
+def test_place_before_a_pin_is_learned_as_a_village_everywhere(tmp_path):
+    out = run(tmp_path, {"a.txt": "Seen: Qazrabadi 402543 near the school.\n", "b.txt": "Patient is a farmer from Qazrabadi, stable.\n"})
+    assert "Qazrabadi" not in out["a.txt"] and "Qazrabadi" not in out["b.txt"]
+
+
+def test_base64_values_inside_plain_text_are_decoded_and_scrubbed(tmp_path):
+    import base64
+    b = lambda s: base64.b64encode(s.encode()).decode()
+    text = (f"callback.b64={b('7300212927')}\nuid.b64={b('6200 0407 2123')}\nwho.b64={b('Thanglenmoi Zeliangru')}\n"
+            f"note.b64={b('Creatinine 2.1 mg/dL')}\n")
+    out = run(tmp_path, {"e.txt": text}, {"rare_dx_max_patients": 0})["e.txt"]
+    for plain in ("7300212927", "6200 0407 2123", "Thanglenmoi"):
+        assert b(plain) not in out and plain not in out
+    assert b("Creatinine 2.1 mg/dL") in out  # nothing sensitive in it: left as written
+
+
+def test_unlabelled_registration_numbers_with_punctuation_are_ids(tmp_path):
+    out = run(tmp_path, {"a.txt": "slip VL/26/OP:4100; born later. also NC~4137~Q and TR{26}.4211 plus ZC@4248/26\n"
+                                  "BP 148/92 mmHg, ICU-12/B, 1-0-1 daily, HbA1c-6.5/7\n"})["a.txt"]
+    for v in ("VL/26/OP:4100", "NC~4137~Q", "TR{26}.4211", "ZC@4248/26"):
+        assert v not in out, v
+    assert "BP 148/92 mmHg" in out and "ICU-12/B" in out and "1-0-1" in out
+
+
+def test_post_office_label_words_mark_pins(tmp_path):
+    out = run(tmp_path, {"a.txt": "Gaon Quenzox, daak 401513.\nडाक ४०१४१०\nP1N : 401307\n"})["a.txt"]
+    for pin in ("401513", "401410", "401307"):
+        assert pin not in out, pin
+
+
+def test_devanagari_patient_cue_and_vcard_birthday(tmp_path):
+    out = run(tmp_path, {"a.txt": "रोगी क़ाज़िरवी मिहिलेश बरुआ को बुखार है।\nBDAY:1974-07-07\n"})["a.txt"]
+    assert "क़ाज़िरवी" not in out and "1974-07-07" not in out

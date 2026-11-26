@@ -10,7 +10,7 @@ from cloak.detect.ids import IdSet
 from cloak.detect.lexicon import medical_words, words as words_of
 from cloak.detect.names import Gazetteer, NameDict, is_non_name, iter_words, merge_spans
 from cloak.detect.normalize import map_span, normalize
-from cloak.detect.payloads import ENCODINGS
+from cloak.detect.payloads import ENCODINGS, decode_b64_text, encode_b64_text
 from cloak.detect.patterns import find_hard
 from cloak.detect.validators import ascii_digits
 from cloak.privacy.ages import find_ages, first_number_span
@@ -42,6 +42,8 @@ def dob_year(value: str) -> str:
     return m.group(1) if m else "[DOB]"
 
 
+_GENERIC_ID = re.compile(r"(?<![A-Za-z0-9])([A-Z]{2,5})[/~@.\-_:#{}\\]{1,2}\d{2,6}(?:[/~@.\-_:#{}\\]{1,2}[A-Za-z0-9]{1,6}){1,3}(?![A-Za-z0-9])")
+_B64_TOKEN = re.compile(r"(?<![A-Za-z0-9+/])[A-Za-z0-9+/]{8,}={0,2}(?![A-Za-z0-9+/=])")
 _TOKEN_ROLES = frozenset({"phone", "aadhaar", "abha", "pan", "insurance", "mrn", "email", "pin", "dob"})
 
 
@@ -50,6 +52,7 @@ class Scrubber:
         self.policy = policy
         self.names = NameDict()
         self.ids = IdSet()
+        self.districts = set()  # casefolded district names seen in structured fields (kept, never learned as villages)
         self.places = {}        # learned village names: casefolded first word -> set of full casefolded phrases
         self.identifiers = 0
         self.stats = Counter()
@@ -102,6 +105,8 @@ class Scrubber:
             self.ids.add(v)
         elif role == "phone":
             self.ids.add(v, shape=False)
+        elif role == "district":
+            self.districts.add(v.casefold())
         elif role == "village":
             words = [w.casefold() for _s, _e, w in iter_words(v)]
             if words and len(" ".join(words)) >= 4 and not (set(words) & (medical_words() | words_of("hinglish_stopwords.txt"))):
@@ -207,6 +212,9 @@ class Scrubber:
         shadow, offs = normalize(text)
         guards = guard_spans(shadow)
         hard = find_hard(shadow)
+        for s in hard:
+            if s.kind == "ID":
+                self.ids.add(shadow[s.start:s.end])  # a labelled ID is known from here on, labelled or not
         if self.sink is not None:
             for s in hard:
                 self.emit("hard:" + s.kind, shadow[s.start:s.end])
@@ -222,6 +230,11 @@ class Scrubber:
                 names.append((s, e))
                 if kind in ("subject", "rel"):
                     self.emit("name:" + kind, shadow[s:e])
+        for m in _GENERIC_ID.finditer(shadow):
+            if sum(c.isdigit() for c in m.group(0)) >= 4 and m.group(1).casefold() not in medical_words() \
+                    and not overlaps_guard(guards, m.start(), m.end()):
+                fixed.append((m.start(), m.end(), "[ID]"))
+                self.ids.add(m.group(0))
         fixed += self._pin_spans(shadow, guards)
         fixed += self._place_spans(shadow, guards)
         names += self.names.find(shadow, guards)
@@ -267,7 +280,28 @@ class Scrubber:
             if n:
                 text = self.wrap_encoded(new, encode)
                 total += n
-        return text, total
+        text, n = self._scrub_b64_tokens(text)
+        return text, total + n
+
+    def _scrub_b64_tokens(self, text: str):
+        """Base64 values inside plain text (key.b64=..., envelope fields): decode, scrub, re-encode only if changed."""
+        if "@@PSN" in text or not _B64_TOKEN.search(text):
+            return text, 0
+        total, out, pos = 0, [], 0
+        for m in _B64_TOKEN.finditer(text):
+            tok = m.group(0)
+            if not (any(c.isdigit() for c in tok) or tok.endswith("=") or (tok != tok.lower() and tok != tok.upper())):
+                continue
+            plain = decode_b64_text(tok)
+            if plain is None or len(plain.strip()) < 4 or not plain.isascii():
+                continue
+            new, n = self.scrub_decoded(plain)
+            if n and new != plain:
+                out.append(text[pos:m.start()])
+                out.append(self.wrap_encoded(new, encode_b64_text))
+                pos, total = m.end(), total + n
+        out.append(text[pos:])
+        return "".join(out), total
 
     def scrub_decoded(self, text: str, doc_labels: bool = False):
         """Scrub the decoded text of an encoded value. Dates, ages and codes still go through the privacy plan."""
@@ -286,8 +320,8 @@ class Scrubber:
             return encode(inner)
         return self.sentinel("enc", "", (encode, inner))
 
-    _PIN_LABELLED = re.compile(r"(?<![\w])(?:pin(?:\s*code)?|postal\s*code|zip|पिन(?:\s*कोड)?)\s*[:=#\-]?\s*([1-9]\d{5})(?!\d)", re.I)
-    _PIN_AFTER_PLACE = re.compile(r"(?<![\w])([A-Z][A-Za-z]{3,})(?:[ \t]*[/,;:\-(]+[ \t]*|[ \t]+)([1-8]\d{5})(?!\d)")
+    _PIN_LABELLED = re.compile(r"(?<![\w])(?:p[1i]n(?:\s*code)?|postal\s*(?:code|zone)|post\s*code|zone|zip|da+k|dak\s*(?:code|pin)|पिन(?:\s*कोड)?|डाक)\s*[:=#\-]?\s*([1-9]\d{5})(?!\d)", re.I)
+    _PIN_AFTER_PLACE = re.compile(r"(?<![\w])([A-Z][A-Za-z]{3,})[ \t\"',/;:\-(^|]+([1-8]\d{5})(?!\d)")
     _VILLAGE_CUE = re.compile(r"(?<![\w])(?i:village|vill|gaon|gaanv|gram|ghar|nivasi|niwasi|r/o|resident\s+of|native\s+of)\.?[ \t:,\-]+"
                               r"([A-Z][a-z]{3,}(?:[ \t]+[A-Z][a-z]{3,})?)|(?:गाँव|गांव|ग्राम|निवासी)[ \t:,\-]+([ऀ-ॿ]{3,})")
 
@@ -304,6 +338,11 @@ class Scrubber:
                         continue
                 if any(s < b and a < e for a, b in blocked):
                     continue
+                if rx is self._PIN_AFTER_PLACE and w.casefold() not in self.districts:
+                    ws = m.start(1)
+                    out.append((ws, m.end(1), ("village", self.policy.get("village_mode"), "[VILLAGE]")
+                                if self.policy.get("village_mode") in ("tehsil", "district") else "[VILLAGE]"))
+                    self.places.setdefault(w.casefold(), set()).add(w.casefold())
                 d = shadow[s:e]
                 fb = d[:3] + "***" if self.policy.get("pin_mode", "prefix3") == "prefix3" else "[PIN]"
                 out.append((s, e, ("pin", d, fb)))

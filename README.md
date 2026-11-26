@@ -100,13 +100,15 @@ layouts we never tuned on (title rows above headers, `=`-records, pipe files, ar
 letters). Its **first run, before any fix, leaked 42.7% of names in full** (IDs 0%); the fixes now reach 0%, but that
 number is tuned, not held out. A truly blind set (41 files, 38 layouts, written by a separate agent that never saw the
 detectors) leaked **46 of 625 items (7.4%) on its first run** (phones, Aadhaar, PAN, e-mail and DOB 0); after fixing the
-causes it is 9 of 625, again tuned, not blind.
+causes it is 9 of 625, again tuned, not blind. A second blind set written by Codex (50 adversarial layouts) leaked
+**107 of 658 (16.3%) on its first run** (IDs in odd shapes, PINs and villages in prose, base64 in plain text); after the
+fixes 31 of 658 (4.7%, tuned).
 
 ## Known limitations
 
 - A5 (targeted attack) stays at 48% of raw on the dev set; stricter rare-diagnosis suppression lowers it to 17% but
   drops medical kept to about 89%.
-- Entirely new document layouts remain the main risk (first blind run: 7.4% leaked; OCR typos such as `Ph1lomena` and villages inside URL-encoded queries still leak); stress sets and attack numbers are our own, not the organisers'.
+- Entirely new document layouts remain the main risk (first blind runs: 7.4% and 16.3% leaked; OCR typos such as `Ph1lomena` and villages inside URL-encoded queries still leak); stress sets and attack numbers are our own, not the organisers'.
 - Procedures and package codes are generalised only in structured fields (not inside prose); `rare_proc_mode: keep` turns it off.
 - OPD file names keep the month; `dob_mode: redact` and village redaction cost generalisation score.
 - Memory grows with the number of events (about 430 MB for 12 MB of dev data repeated ten times, about 1.1 GB and 81 s for 36 MB under Docker `--cpus=2 --memory=4g`).

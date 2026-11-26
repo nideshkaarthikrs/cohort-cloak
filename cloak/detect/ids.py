@@ -6,6 +6,9 @@ from cloak.detect.validators import ascii_digits
 _CAND = re.compile(r"(?<![A-Za-z0-9])(?:[A-Za-z]{1,6}[\-/_ ]?)?\d[\d\-/_ .]{2,}\d(?![A-Za-z0-9])|(?<![A-Za-z0-9])[A-Za-z]{1,6}\d{3,}(?![A-Za-z0-9])")
 
 
+_TOK = re.compile(r"[^\s\"',;|<>\[\]]{5,40}")
+
+
 def alnum(s: str) -> str:
     return re.sub(r"[^a-z0-9]", "", ascii_digits(s).casefold())
 
@@ -23,10 +26,10 @@ def shape_regex(value: str):
         elif t.isdigit():
             parts.append(f"\\d{{{len(t)}}}")
         else:
-            parts.append(r"[\-/_ .:]?")
+            parts.append(r"(?:[^\sA-Za-z\d]{1,2}| )?")
     src = "".join(parts)
     # collapse separator-optional neighbours into one
-    src = re.sub(r"(?:\[\\-/_ \.:\]\?){2,}", r"[\\-/_ .:]?", src)
+    src = re.sub(r"(?:\(\?:\[\^\\sA-Za-z\\d\]\{1,2\}\| \)\?){2,}", r"(?:[^\\sA-Za-z\\d]{1,2}| )?", src)
     if len(re.sub(r"\D", "", v)) < 5:
         return None  # too few digits: the shape would match ordinary words followed by a year
     has_letter = bool(re.search(r"[A-Za-z]", v))
@@ -94,4 +97,12 @@ class IdSet:
             spans.append((s + lead, e - trail))
         for m in self._shape_regex().finditer(t):
             spans.append((m.start(), m.end()))
+        if self._full:  # exact known IDs with unusual punctuation (NC~4137~Q, TR{26}.4211, ZC@4248/26)
+            for m in _TOK.finditer(t):
+                tok = m.group(0)
+                for cand in {tok, tok.split("=")[-1]}:
+                    c = cand.strip(".:()-/_`^=")
+                    if len(alnum(c)) >= 6 and alnum(c) in self._full:
+                        i = tok.find(c)
+                        spans.append((m.start() + i, m.start() + i + len(c)))
         return sorted(set(spans))

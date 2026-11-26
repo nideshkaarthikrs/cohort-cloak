@@ -247,6 +247,8 @@ state:
   - country
   - राज्य
 dob:
+  - bday
+  - birthday
   - born
   - dob
   - date of birth

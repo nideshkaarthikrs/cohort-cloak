@@ -26,7 +26,7 @@ _ID_LABELS = (
     r"पंजीकरण\s*(?:सं\.?|संख्या|नं\.?|नंबर)", r"आईपीडी\s*(?:सं\.?|संख्या|नं\.?)", r"रोगी\s*(?:आईडी|संख्या)",
 )
 _ID_LABEL_RX = re.compile(
-    r"(?<![\w])(?:" + "|".join(_ID_LABELS) + r")\s*[:#\-]?\s*([A-Za-z0-9ऀ-ॿ][A-Za-z0-9/\-_.]{3,})", re.I)
+    r"(?<![\w])(?:" + "|".join(_ID_LABELS) + r")\s*[:#\-]?\s*([A-Za-z0-9ऀ-ॿ][^\s,;|\"'<>\[\]]{3,})", re.I)
 
 _CTX_AADHAAR = re.compile(r"(?:aadh?a+r|uid|आधार)", re.I)
 
@@ -79,7 +79,7 @@ def find_hard(text: str) -> list:
         if spaced or _CTX_AADHAAR.search(ctx):
             add(m.start(), m.end(), "AADHAAR")
     for m in _ID_LABEL_RX.finditer(t):
-        val = m.group(1).rstrip(".-_/")
+        val = m.group(1).rstrip(".-_/:)(")
         if re.search(r"\d", val):
             add(m.start(1), m.start(1) + len(val), "ID")
     return sorted(found)
