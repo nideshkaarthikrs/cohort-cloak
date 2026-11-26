@@ -96,3 +96,11 @@ def test_parenthesised_area_code_phone_is_found_but_a_range_is_not():
         spans = find_hard(f"call {raw} today")
         assert [s.kind for s in spans] == ["PHONE"], raw
     assert find_hard("BP (120) 80-90 mmHg") == []
+
+
+def test_labelled_aadhaar_with_stray_scanner_spaces_and_letters():
+    for raw in ("UID 6435 I  969 989O", "Aadhaar: 6484 8  2I4 7676", "UID 64II I  456 335I"):
+        spans = find_hard("A note carried " + raw + ", then more")
+        assert [s.kind for s in spans] == ["AADHAAR"], raw
+    assert find_hard("UID 1234 5") == []  # too short
+    assert find_hard("dose 6435 I 969 989O mg") == []  # no Aadhaar label nearby

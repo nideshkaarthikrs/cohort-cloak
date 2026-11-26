@@ -31,10 +31,16 @@ def _fold_char(ch: str) -> str:
 
 _OCR_NUM = re.compile(r"(?<![A-Za-z0-9])(?=[0-9OolI]{4,}(?![A-Za-z0-9]))(?=(?:[^\d]*\d){3})[0-9OolI]+")
 _OCR_DIGIT = str.maketrans("OolI", "0011")
+# the tail of an ID typed with look-alike letters, after a capital prefix or a number and a separator
+# (`PL/26/lOO4`, `QR::lOO5:M`, `RL-26-lOO2-OP`); needs at least one look-alike and 3+ characters
+_OCR_TAIL = re.compile(
+    r"(?:(?<=[A-Z][/\-:@._])|(?<=[A-Z][/\-:@._]{2})|(?<=\d[/\-:@._]))"
+    r"(?<![A-Za-z0-9])(?=[0-9OolI]{3,}(?![A-Za-z0-9]))[0-9OolI]*[OolI][0-9OolI]*")
 
 
 def _fix_scanned_digits(text: str) -> str:
     """Tokens that are mostly digits with O/l/I standing in for 0/1 (OCR) read as numbers; same length, so offsets hold."""
+    text = _OCR_TAIL.sub(lambda m: m.group(0).translate(_OCR_DIGIT), text)
     if not _OCR_NUM.search(text):
         return text
     return _OCR_NUM.sub(lambda m: m.group(0).translate(_OCR_DIGIT) if sum(c.isdigit() for c in m.group(0)) * 2 >= len(m.group(0)) else m.group(0), text)

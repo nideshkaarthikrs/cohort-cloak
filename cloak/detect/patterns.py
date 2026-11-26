@@ -10,6 +10,8 @@ from cloak.model import Span
 
 _PHONE_RUN = re.compile(r"(?<![\w.])(?:\+|00)?(?:\d(?:[ \-]?\d){9,13}|\(\d{3}\)[ \-]?\d{3}[ \-]?\d{4})(?![\w]|[ \-]?\d)")
 _AADHAAR = re.compile(r"(?<![\w])[2-9]\d{3}[ \-]?\d{4}[ \-]?\d{4}(?![\w]|[ \-]?\d)")
+# after an Aadhaar label: 12 digits with scanner look-alikes (O, l, I) and stray spaces between them
+_AADHAAR_FUZZY = re.compile(r"(?:aadh?a+r|uid|आधार)\W{0,4}((?:[0-9OolI] {0,3}){11}[0-9OolI])(?![A-Za-z0-9])", re.I)
 _AADHAAR_MASK = re.compile(r"(?<![\w])[Xx*•]{4}[ \-]?[Xx*•]{4}[ \-]?\d{4}(?!\d)")
 _ABHA = re.compile(r"(?<![\w])\d{2}-\d{4}-\d{4}-\d{4}(?!\d)|(?<![\w])\d{14}(?!\d)")
 _ABHA_ADDR = re.compile(r"(?<![\w.\-])[\w.\-]+@(?:abdm|sbx)\b", re.I)
@@ -78,6 +80,10 @@ def find_hard(text: str) -> list:
         spaced = bool(re.search(r"[ \-]", raw))
         if spaced or _CTX_AADHAAR.search(ctx):
             add(m.start(), m.end(), "AADHAAR")
+    for m in _AADHAAR_FUZZY.finditer(t):
+        v = m.group(1)
+        if sum(c.isdigit() for c in v) >= 8 and v.replace(" ", "")[0] in "23456789OolI":
+            add(m.start(1), m.end(1), "AADHAAR")
     for m in _ID_LABEL_RX.finditer(t):
         val = m.group(1).rstrip(".-_/:)(")
         if re.search(r"\d", val):
