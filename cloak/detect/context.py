@@ -139,15 +139,10 @@ def cue_name_spans_typed(text: str, phone_spans=(), dictionary=None) -> list:
         if sp:
             out.append((sp[0], sp[1], "subject"))
     for m in _DEVA_PATIENT_NOUN.finditer(text):
-        toks = list(re.finditer(_DEVA_TOK, m.group(1)))
-        keep = 0
-        while keep < len(toks) and (Gazetteer.known(toks[keep].group(0)) or (dictionary is not None and dictionary.matches_word(toks[keep].group(0)))):
-            keep += 1
-        if keep:
-            a = m.start(1)
-            sp = _trim(a + toks[0].start(), a + toks[keep - 1].end(), text)
-            if sp:
-                out.append((sp[0], sp[1], "subject"))
+        toks = [t.group(0) for t in re.finditer(_DEVA_TOK, m.group(1))]
+        followed = re.match(r"\s+(?:को|ने|का|की|के)(?![\u0900-\u097f])", text[m.end(1):])
+        if followed or any(Gazetteer.known(w) or (dictionary is not None and dictionary.matches_word(w)) for w in toks):
+            add(m, "subject")
     for m in _CUE.finditer(text):
         label = text[m.start():m.start(1)].casefold()
         add(m, "subject" if ("patient" in label or "pt name" in label or "report of" in label) else "rel")
