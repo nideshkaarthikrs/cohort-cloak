@@ -14,6 +14,10 @@ patient_name:
   - full name
   - first name
   - last name
+  - first
+  - last
+  - given
+  - forename
   - given name
   - family name
   - surname

@@ -247,3 +247,23 @@ def test_unknown_header_column_of_clinical_words_is_kept(tmp_path):
     rows = ["Tag,Zq"] + [f"Pt{i},{v}" for i, v in enumerate(vals)]
     out = run(tmp_path, {"x/d.csv": "\n".join(rows) + "\n"})
     assert out["x/d.csv"].count("Cardiology") == 4 and "Neurology" in out["x/d.csv"]
+
+
+def test_bare_first_and_last_headers_are_name_columns(tmp_path):
+    csv = ("first,last,visit_note\nZanthippe,Okwuosa,stable\nBrondolyn,Vashisthra,improving\n"
+           "Quillon,Tamarapalli,discharged\n")
+    out = run(tmp_path, {"p/a.csv": csv, "p/n.txt": "Ward round: Zanthippe is better. Quillon went home.\n"})
+    blob = "\n".join(out.values())
+    for leak in ("Zanthippe", "Okwuosa", "Brondolyn", "Vashisthra", "Quillon", "Tamarapalli"):
+        assert leak not in blob, leak
+    assert "stable" in blob and "improving" in blob
+
+
+def test_pipe_file_with_title_rows_above_the_header_is_a_table(tmp_path):
+    body = ("EXTRACT|Zork Hospital|batch|32\nschema varies by source\n"
+            "last|first|pin|phone|note\nOkwuosa|Zanthippe|421101|9876501234|ok\n"
+            "Vashisthra|Brondolyn|421204|9876501235|ok\nTamarapalli|Quillon|421307|9876501236|ok\n")
+    out = run(tmp_path, {"p/b.psv": body})
+    blob = out["p/b.psv"]
+    for leak in ("Zanthippe", "421101", "421204", "9876501234", "Okwuosa"):
+        assert leak not in blob, leak

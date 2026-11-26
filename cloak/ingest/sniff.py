@@ -64,12 +64,19 @@ def sniff_delimiter(text: str, ext: str) -> str:
         counts = [len(r) for r in rows]
         if not counts or counts[0] < 2 or len(rows) < 3:
             continue
-        if any(c.count(" ") >= 5 for c in rows[0]):
-            continue  # a prose or key=value log line, not a header row
         mode = max(set(counts), key=counts.count)
-        if mode >= 2 and counts.count(mode) / len(counts) >= 0.9 and counts[0] == mode:
-            best = d
-            break
+        if mode < 2:
+            continue
+        lead = counts.index(mode)  # a few title rows may sit above the header row
+        tail = counts[lead:]
+        if lead > 6 or len(tail) < 3 or tail.count(mode) / len(tail) < 0.9:
+            continue
+        if lead and not all(1 <= c <= mode for c in counts[:lead]):
+            continue
+        if any(c.count(" ") >= 5 for c in rows[lead]):
+            continue  # a prose or key=value log line, not a header row
+        best = d
+        break
     if not best and pref:
         return pref  # a .csv/.tsv file with a single column
     return best
