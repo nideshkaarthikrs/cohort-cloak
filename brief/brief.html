@@ -62,10 +62,10 @@ from structured fields first and then using them everywhere, with cluster-level 
 <table>
 <tr><th style="width:55%">Measure</th><th>Value</th></tr>
 <tr><td>personal data leaked: overall / Hindi / Hinglish</td><td>0% / 0% / 0% (0 of 3230 pieces; canaries 0 of 4)</td></tr>
-<tr><td>medical values kept</td><td>94.7% (4,599 of 4,855); doctors, doses, vitals, labs, complaints, history, wards 100%; diagnoses 72% by design</td></tr>
-<tr><td>linking precision / recall / F0.5</td><td>1.000 / 0.996 / 0.999; wrong merges 0; both homonym pairs separated; language and fragment traps linked</td></tr>
+<tr><td>medical values kept</td><td>94.3% (4,576 of 4,855); doctors, doses, vitals, labs, complaints, history, wards 100%; rare diagnoses, procedures and package codes generalised by design</td></tr>
+<tr><td>linking precision / recall / F0.5</td><td>1.000 / 1.000 / 1.000; wrong merges 0, no patient split; both homonym pairs separated; language and fragment traps linked</td></tr>
 <tr><td>re-identification risk (own attack simulation, ratio to raw input)</td><td>A3 record linkage 4.4% · A4 profile re-identification 2.1% (raw 100%) · A5 targeted 48.3% (raw 92%)</td></tr>
-<tr><td>temporal and truthfulness</td><td>date intervals exact 99.2%; every age band contains the true age (350 of 350)</td></tr>
+<tr><td>temporal and truthfulness</td><td>date intervals exact 99.5%; every age band contains the true age (350 of 350)</td></tr>
 <tr><td>run time / peak memory</td><td>about 1 s / 52 MB (limits 15 min / 4 GB); 10x data scales with exponent 0.89; output byte-identical across runs</td></tr>
 <tr><td><b>on data we did not tune on</b></td><td>3 generated stress seeds: 0% critical IDs, 0% names, 0 of 10 canaries leaked, 97-99% of probes kept. <b>New layouts (first run, before any fix): IDs 0%, but 42.7% of names leaked (62% any token)</b>; after fixes 0%, but that figure is tuned, not held out.</td></tr>
 </table>
@@ -78,7 +78,7 @@ from structured fields first and then using them everywhere, with cluster-level 
 <ul>
 <li><b>Targeted attack:</b> A5 stays at 48% of raw on 48 patients; length of stay cannot be hidden by design, and rare conditions are only generalised below the scaled threshold.</li>
 <li><b>New layouts:</b> unseen document layouts are the main risk; our stress sets and attacker are our own work, not the organisers' evaluator, and the unseen-layout result above shows how fast it can fall (43% name leak) before tuning.</li>
-<li><b>Gaps:</b> dates inside encoded payloads are not shifted; procedures and package codes are not generalised; OPD file names keep the month; memory grows with the number of events (about 430 MB for 12 MB of repeated dev data).</li>
+<li><b>Gaps:</b> procedures and package codes are generalised only in structured fields; OPD file names keep the month; memory grows with the number of events (about 980 MB and 64 s for 36 MB of repeated dev data, inside the 4 GB / 15 min limits).</li>
 <li><b>Tuning:</b> linkage weights, thresholds and the operating point were tuned on the practice data; generalisation score is low by design (DOB, village, PIN prefix are redacted or coarse).</li>
 <li><b>Next steps:</b> a held-out layout set from a second author, spilling the event table, procedure/package generalisation, and a learned scoring layer for linkage if allowed.</li>
 </ul>

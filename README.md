@@ -79,10 +79,10 @@ tehsil to district, PIN 3-digit prefix, 5-year bands, `k_min` 5, rare threshold 
 | Dev set (48 patients) | Value |
 |---|---|
 | personal data leaked (all languages and channels) | 0 of 3230 |
-| medical values kept | 94.7% (diagnoses 72%: rare ones are generalised on purpose) |
-| linking precision / recall / F0.5, wrong merges | 1.000 / 0.996 / 0.999, 0 |
+| medical values kept | 94.3% (rare diagnoses, procedures and package codes are generalised on purpose) |
+| linking precision / recall / F0.5, wrong merges | 1.000 / 1.000 / 1.000, 0 (0 of 48 patients split) |
 | own attack simulation vs raw: A3 / A4 / A5 | 4.4% / 2.1% / 48.3% |
-| intervals exact, ages truthful | 99.2%, 350/350 |
+| intervals exact, ages truthful | 99.5%, 350/350 |
 | run time / peak memory | about 1 s / 52 MB (10x data: scaling exponent 0.89) |
 
 ## Security
@@ -103,9 +103,9 @@ number is tuned, not held out.
 ## Known limitations
 
 - A5 (targeted attack) stays at 48% of raw on the dev set; stricter rare-diagnosis suppression lowers it to 17% but
-  drops medical kept to 89%.
+  drops medical kept to about 89%.
 - Entirely new document layouts remain the main risk; stress sets and attack numbers are our own, not the organisers'.
-- Dates inside encoded payloads are not shifted; procedures and package codes are not generalised.
+- Procedures and package codes are generalised only in structured fields (not inside prose); `rare_proc_mode: keep` turns it off.
 - OPD file names keep the month; `dob_mode: redact` and village redaction cost generalisation score.
-- Memory grows with the number of events (about 430 MB for 12 MB of dev data repeated ten times).
+- Memory grows with the number of events (about 430 MB for 12 MB of dev data repeated ten times, about 980 MB and 64 s for 36 MB).
 - Weights and thresholds were tuned on the practice data.
