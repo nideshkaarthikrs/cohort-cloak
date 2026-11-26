@@ -42,6 +42,9 @@ def dob_year(value: str) -> str:
     return m.group(1) if m else "[DOB]"
 
 
+_DEVA_ANY = re.compile(r"[ऀ-ॿ]")
+_DEVA_AFTER = re.compile(r"[ \t]+([ऀ-ॣॱ-ॿ]{3,})(?![ऀ-ॿ])")
+_DEVA_BEFORE = re.compile(r"([ऀ-ॣॱ-ॿ]{3,})[ \t]+\Z")
 _GENERIC_ID = re.compile(r"(?<![A-Za-z0-9])([A-Z]{2,5})[/~@.\-_:#{}\\]{1,2}\d{2,6}(?:[/~@.\-_:#{}\\]{1,2}[A-Za-z0-9]{1,6}){1,3}(?![A-Za-z0-9])")
 _B64_TOKEN = re.compile(r"(?<![A-Za-z0-9+/])[A-Za-z0-9+/]{8,}={0,2}(?![A-Za-z0-9+/=])")
 _TOKEN_ROLES = frozenset({"phone", "aadhaar", "abha", "pan", "insurance", "mrn", "email", "pin", "dob"})
@@ -240,6 +243,7 @@ class Scrubber:
         names += self.names.find(shadow, guards)
         names += Gazetteer.runs(shadow, guards)
         names = [(s, e) for s, e in merge_spans(names, shadow)]
+        names = self._absorb_devanagari(shadow, names, guards)
         for s, e in list(names):  # "Surname, Given Names": the surname before the comma goes too
             m = re.search(r"([A-Z][A-Za-z']{2,}),[ \t]*$", shadow[max(0, s - 40):s])
             if m and not is_non_name(m.group(1)) and m.group(1).casefold() not in medical_words():
@@ -319,6 +323,26 @@ class Scrubber:
         if self.table is None:
             return encode(inner)
         return self.sentinel("enc", "", (encode, inner))
+
+    def _absorb_devanagari(self, shadow: str, names: list, guards) -> list:
+        """Devanagari words right next to a detected name are its other-script spelling or a further name part."""
+        if not names or not _DEVA_ANY.search(shadow):
+            return names
+        func = words_of("deva_function_words.txt") | medical_words()
+        out = []
+        for s, e in names:
+            for _ in range(3):
+                m = _DEVA_AFTER.match(shadow, e)
+                if not m or m.group(1) in func or overlaps_guard(guards, m.start(1), m.end(1)):
+                    break
+                e = m.end(1)
+            for _ in range(3):
+                m = _DEVA_BEFORE.search(shadow, max(0, s - 40), s)
+                if not m or m.group(1) in func or overlaps_guard(guards, m.start(1), m.end(1)):
+                    break
+                s = m.start(1)
+            out.append((s, e))
+        return [(a, b) for a, b in merge_spans(out, shadow)]
 
     _PIN_LABELLED = re.compile(r"(?<![\w])(?:p[1i]n(?:\s*code)?|postal\s*(?:code|zone)|post\s*code|zone|zip|da+k|dak\s*(?:code|pin)|पिन(?:\s*कोड)?|डाक)\s*[:=#\-]?\s*([1-9]\d{5})(?!\d)", re.I)
     _PIN_AFTER_PLACE = re.compile(r"(?<![\w])([A-Z][A-Za-z]{3,})[ \t\"',/;:\-(^|]+([1-8]\d{5})(?!\d)")
@@ -474,7 +498,9 @@ class Scrubber:
         pieces, total, pos = [], 0, 0
         for i, m in enumerate(marks):
             label = m.group(1).strip()
-            role, _ = header_role(label)
+            role, score = header_role(label)
+            if role and len(label.split()) > 3 and score < 95:
+                role = None  # a sentence fragment that merely resembles a header, not a field name
             vstart = m.end()
             vend = marks[i + 1].start() if i + 1 < len(marks) else len(line)
             self.src = label

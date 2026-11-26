@@ -154,3 +154,20 @@ def test_unknown_first_name_next_to_a_known_given_name_is_a_name(tmp_path):
 def test_name_continued_on_unlabelled_lines_is_redacted(tmp_path):
     out = run(tmp_path, {"a.txt": "Clinic header\nName begins below, continuation has no label:\nElarosa\nMinetta\nDovarkar\nNext of kin: Lucien Dovarkar (father)\nPulse 96 beats/min\n"})["a.txt"]
     assert "Elarosa" not in out and "Minetta" not in out and "Pulse 96" in out
+
+
+def test_sentence_initial_verbs_do_not_make_clinical_phrases_into_names(tmp_path):
+    out = run(tmp_path, {"a.txt": "Reports TSH 8.6 mIU/L. Requested Thyroid function review; routed to nurse. Advised Peripheral blood smear.\n"})["a.txt"]
+    assert "Thyroid function review" in out and "Peripheral blood smear" in out
+
+
+def test_long_prose_label_is_not_an_address_field(tmp_path):
+    out = run(tmp_path, {"a.txt": "Mobile: 9814402217\nघर पर मुलाकात की। दवा का पत्ता देखा: Nitrofurantoin 100 mg.\n"})["a.txt"]
+    assert "Nitrofurantoin 100 mg" in out
+
+
+def test_devanagari_words_next_to_a_redacted_name_belong_to_it(tmp_path):
+    out = run(tmp_path, {"a.txt": "Re: Mrinmay Deshmule मृण्मय देशमुले\nलाभार्थी: ध्रुवज्योति Dhruvjyoti Phadke\nMrinmay Deshmule को बुखार है, बहुत कमज़ोरी।\n"})["a.txt"]
+    for w in ("मृण्मय", "देशमुले", "ध्रुवज्योति"):
+        assert w not in out
+    assert "बुखार" in out

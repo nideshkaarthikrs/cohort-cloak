@@ -17,3 +17,4 @@ medicine medicines medication medications tablet capsule syrup injection ointmen
 review advice diet rest fluids oral intravenous daily twice thrice weekly monthly
 male female patient patients
 alcohol tobacco smoking
+requested reported advised referred informed noted admitted discharged prescribed scheduled confirmed asked called reviewed recommended suggested started stopped continued completed collected submitted received counselled counseled visited followed returned transferred registered updated verified issued approved rejected pending routed forwarded booked cancelled rescheduled
