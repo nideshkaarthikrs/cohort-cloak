@@ -14,6 +14,18 @@ _STOP = STOP
 _TOKEN_SPLIT = re.compile(r"[^\wऀ-ൿء-ٟٱ-ۓ']+")
 _WORD = re.compile(r"[A-Za-z]+(?:'[A-Za-z]+)?|[ऀ-ॣॱ-ൿء-ٟٱ-ۓ]+")
 _GAP = re.compile(r"[ \t.,]{1,2}")
+_OCR_WORD = re.compile(r"(?<![A-Za-z0-9])(?=[A-Za-z0-9']{4,}(?![A-Za-z0-9]))(?:[A-Za-z]+[0134578]){1,3}[A-Za-z]*(?![A-Za-z0-9])|"
+                       r"(?<![A-Za-z0-9])[0134578](?=[A-Za-z]{3,}(?![A-Za-z0-9]))[A-Za-z]*")
+_OCR_SUBS = {"0": "o", "1": "li", "3": "e", "4": "a", "5": "s", "7": "t", "8": "b"}
+
+
+def _ocr_variants(raw: str, cap: int = 8) -> list:
+    """Plausible letter readings of a token whose letters were mis-scanned as digits (1 is l or i)."""
+    outs = [""]
+    for ch in raw:
+        opts = _OCR_SUBS.get(ch, ch)
+        outs = [o + c for o in outs for c in opts][:cap]
+    return [o for o in outs if o.isalpha()]
 
 
 NOT_NAME_CAPS = frozenset({
@@ -144,6 +156,12 @@ class NameDict:
             return []
         guards = guard_spans(text) if guards is None else guards
         spans = [(s, e) for s, e, w in iter_words(text) if self.matches_word(w) and not overlaps_guard(guards, s, e)]
+        for m in _OCR_WORD.finditer(text):  # scanner typos: Ph1lomena, G4rnet, 0yelaran
+            raw = m.group(0)
+            if (sum(c.isalpha() for c in raw) >= 3
+                    and not overlaps_guard(guards, m.start(), m.end())
+                    and any(self.matches_word(v) for v in _ocr_variants(raw))):
+                spans.append((m.start(), m.end()))
         return merge_spans(spans, text)
 
     def scrub(self, text: str):

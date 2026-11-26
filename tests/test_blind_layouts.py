@@ -208,3 +208,14 @@ def test_line_with_endless_whitespace_is_not_quadratic():
     assert time.monotonic() - t0 < 2.0
     m = _LABEL.search("Ward 4" + " " * 80 + "Phone: 9876501234")
     assert m and m.group(1) == "Phone"
+
+
+def test_ocr_digit_for_letter_typos_of_a_known_name_are_removed(tmp_path):
+    csv = "Name,Phone,Age\nPhilomena Quarrington,9876512340,41\nGarnet Oyelaran,9812345670,35\n"
+    note = ("Scanned note: patient Ph1lomena Quarrington was seen; her bro G4rnet 0yelaran waited. "
+            "Quarr1ngton family informed. BP 130/80, Metformin 500 mg.\n")
+    out = run(tmp_path, {"reg/a.csv": csv, "scan/n.txt": note})
+    blob = "\n".join(out.values()).lower()
+    for leak in ("ph1lomena", "quarrington", "g4rnet", "0yelaran", "quarr1ngton"):
+        assert leak not in blob, leak
+    assert "130/80" in blob and "metformin 500 mg" in blob
