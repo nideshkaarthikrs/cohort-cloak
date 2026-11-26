@@ -81,3 +81,12 @@ def test_order_votes_prefer_source_then_file_then_default():
     assert v.order(("f", "col:1"), ("f",), "dmy") == "mdy"
     assert v.order(("f", "col:9"), ("f",), "dmy") in ("dmy", "mdy")
     assert v.order(("g", "x"), ("g",), "dmy") == "dmy"
+
+
+def test_two_digit_year_dates_with_dash_or_dot_are_found_when_every_part_has_two_digits():
+    from cloak.privacy.dates import find_dates
+    for raw in ("08-08-65", "23-11-80", "12.03.26"):
+        toks = find_dates(f"Birth was recalled as {raw}, age 46", "dmy")
+        assert len(toks) == 1 and toks[0].kind == "num", raw
+    for raw in ("1-0-1", "1-1-1", "10-10-5", "5-26", "2-2-10"):
+        assert find_dates(f"Tab {raw} daily", "dmy") == [], raw

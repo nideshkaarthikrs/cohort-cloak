@@ -111,7 +111,7 @@ def find_dates(text: str, order: str = "dmy", skip=(), votes=None, order_for=Non
         elif len(g3) in (2, 4) and len(g1) <= 2:
             a, b, c = int(g1), int(g2), int(g3)
             if len(g3) == 2:
-                if sep != "/" or a == 0 or b == 0:
+                if (sep != "/" and not (len(g1) == 2 and len(g2) == 2)) or a == 0 or b == 0:
                     continue
                 y = 2000 + c if c <= 69 else 1900 + c
             else:
