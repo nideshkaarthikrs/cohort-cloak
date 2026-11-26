@@ -1,4 +1,4 @@
 [submission]
-name  = "cohort-cloak"
+name  = "Moorthi Annan Gang"
 setup = "pip install -r requirements.txt"
 run   = "python main.py --input {input} --output {output}"

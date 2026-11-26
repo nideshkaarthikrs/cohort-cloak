@@ -1,4 +1,4 @@
-# Cohort Cloak: Secret Wards (Track 3) implementation plan
+# CohortCloak: Secret Wards (Track 3) implementation plan
 
 > This file becomes `PLAN.md` at the repo root. A companion `CLAUDE.md` holds the hard rules and the working protocol.
 > Planner: Opus 5.5. Implementer: Sonnet 5.5. The implementer updates the **Status board** and the **Running log** at the end of every phase.

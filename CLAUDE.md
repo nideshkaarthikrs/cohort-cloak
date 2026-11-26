@@ -1,4 +1,4 @@
-# CLAUDE.md: Cohort Cloak (Secret Wards, Track 3)
+# CLAUDE.md: CohortCloak (Secret Wards, Track 3)
 
 This repo is our submission for Yugaantar DevForge Track 3, "Secret Wards". It is an offline, CPU-only, LLM-free privacy firewall for synthetic Indian hospital records.
 **Read `PLAN.md` before doing anything.** It holds the findings, architecture, design decisions, phases, gates, status board and running log.

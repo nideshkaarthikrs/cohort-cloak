@@ -88,7 +88,7 @@ def _list_files(inp: Path):
 def main(argv=None) -> int:
     sys.excepthook = _excepthook
     sys.setrecursionlimit(3000)
-    ap = argparse.ArgumentParser(description="Cohort Cloak privacy firewall")
+    ap = argparse.ArgumentParser(description="CohortCloak privacy firewall")
     ap.add_argument("--input", required=True)
     ap.add_argument("--output", required=True)
     ap.add_argument("--ablate-names", action="store_true", help="dev only: do not learn names from structured fields")

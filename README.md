@@ -1,4 +1,6 @@
-# Cohort Cloak: Secret Wards (Track 3)
+# CohortCloak: Secret Wards (Track 3)
+
+**Team Moorthi Annan Gang**: Nidesh Kaarthik R S, SRISANJAY G, Prithviraj S, Sai Samanvith G.
 
 An offline, CPU-only, LLM-free privacy firewall for synthetic Indian hospital records. It reads a mixed dump
 (CSV/TSV, nested JSON, FHIR bundles, free text in English, Hindi and Hinglish), removes personal data, keeps the medical

@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en"><head><meta charset="utf-8"><title>Cohort Cloak: Project Brief</title>
+<html lang="en"><head><meta charset="utf-8"><title>CohortCloak: Project Brief</title>
 <style>
 @page { size: A4; margin: 11mm 12mm; }
 * { box-sizing: border-box; }
@@ -17,11 +17,11 @@ svg { width: 100%; height: auto; display: block; margin: 2pt 0 3pt; }
 code { font-family: Menlo, monospace; font-size: 9.5pt; }
 </style></head><body>
 
-<h1>Cohort Cloak: a privacy firewall that links people without exposing them</h1>
-<div class="sub"><b>Track 3 · Secret Wards</b> · Team: nideshkaarthikrs · Repo: github.com/nideshkaarthikrs/cohort-cloak · Models used: <b>none</b> (rules, gazetteers, classical string similarity)</div>
+<h1>CohortCloak: a privacy firewall that links people without exposing them</h1>
+<div class="sub"><b>Track 3 · Secret Wards</b> · Team: <b>Moorthi Annan Gang</b> (Nidesh Kaarthik R S, SRISANJAY G, Prithviraj S, Sai Samanvith G) · Repo: github.com/nideshkaarthikrs/cohort-cloak · Models used: <b>none</b> (rules, gazetteers, classical string similarity)</div>
 
 <h2>1. In one paragraph</h2>
-<p>Cohort Cloak sanitises a synthetic multi-hospital dump (CSV/TSV, nested JSON, FHIR, English/Hindi/Hinglish text) offline on 2 CPUs.
+<p>CohortCloak sanitises a synthetic multi-hospital dump (CSV/TSV, nested JSON, FHIR, English/Hindi/Hinglish text) offline on 2 CPUs.
 It redacts identifiers in every channel (content, file names, headers, keys, base64, encodings), keeps clinical values exact,
 gives each patient one keyed pseudonym across all files, and then <i>measures</i> its own re-identification risk with a re-implemented
 registry attacker and picks its privacy settings from that measurement. Its single best idea: a two-pass design, learning every name and ID

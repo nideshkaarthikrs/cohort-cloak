@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Cohort Cloak entry point: python main.py --input <dir> --output <dir>."""
+"""CohortCloak entry point: python main.py --input <dir> --output <dir>."""
 import sys
 
 from cloak.cli import main
