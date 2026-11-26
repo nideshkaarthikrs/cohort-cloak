@@ -49,7 +49,7 @@ def test_records_jsonl_locators(tmp_path):
     assert ("sanitized/reg/b.json", "/visits/0") in locs and ("sanitized/reg/b.json", "/visits/1") in locs
     assert ("sanitized/reg/b.json", "doc") in locs
     assert ("sanitized/notes/n_ID.txt", "doc") in locs or any(l[0].startswith("sanitized/notes/") and l[1] == "doc" for l in locs)
-    assert all(r["patient"] is None for r in recs)
+    assert all(r["patient"] is None or r["patient"].startswith("PSN-") for r in recs)
 
 
 def test_missing_secret_fails_closed(tmp_path):

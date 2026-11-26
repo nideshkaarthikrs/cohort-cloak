@@ -20,6 +20,8 @@ from cloak.policy import load_policy
 from cloak.report import build_report, write_records, write_report
 from cloak.detect.engine import Scrubber
 from cloak.rewrite.filenames import sanitize_paths
+from cloak.link.units import link_units, patient_for
+from cloak.rewrite.apply import resolve, substitute
 from cloak.rewrite.structured import transform_csv, transform_json, transform_text
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -31,10 +33,12 @@ def _excepthook(etype, _value, tb):
     sys.stderr.write(f"fatal {etype.__name__} at {' > '.join(frames[-6:])}\n")
 
 
-def _render(p, scrubber):
+def _render(p, scrubber, locs=()):
     """Return (output_bytes, redaction_count) for a parsed file."""
+    scrubber.rec = "doc"
     if p.kind in ("json", "fhir"):
-        out, n = transform_json(p.data, scrubber)
+        out, n = transform_json(p.data, scrubber, locs)
+        scrubber.rec = "doc"
         return (json.dumps(out, ensure_ascii=False, indent=2) + "\n").encode("utf-8"), n
     if p.kind == "csv":
         rows = csv_rows(p.text, p.delimiter)
@@ -47,7 +51,17 @@ def _render(p, scrubber):
         w.writerows(nb)
         return buf.getvalue().encode("utf-8"), n
     out, n = transform_text(p.text, scrubber)
+    if scrubber.table is not None and scrubber.sink is not None:
+        placed = any(t[0] == scrubber.fid and t[1] == "doc" and t[2] in ("name", "mrn") for t in scrubber.table)
+        has_identity = any(e[0] == scrubber.fid and e[1] == "doc" and e[2] in _IDENTITY_EVENTS for e in scrubber.sink)
+        if has_identity and not placed:
+            scrubber.rec = "doc"
+            out = out.rstrip("\n") + "\n" + scrubber.sentinel("append", "") + "\n"
     return out.encode("utf-8"), n
+
+
+_IDENTITY_EVENTS = ("patient_name", "name:subject", "mrn", "aadhaar", "abha", "hard:ID", "hard:AADHAAR", "hard:ABHA",
+                    "hard:PHONE", "id:known", "phone")
 
 
 def _locs(p):
@@ -88,7 +102,7 @@ def main(argv=None) -> int:
     if out == inp or inp in out.parents or out in inp.parents:
         print("error output_overlaps_input")
         return 2
-    keys = Keys(secret.encode("utf-8"))  # noqa: F841 - used from Phase 4 on
+    keys = Keys(secret.encode("utf-8"))
     policy = load_policy(ROOT / "config" / "policy.yaml")
     policy["ablate_names"] = bool(a.ablate_names)
 
@@ -117,45 +131,61 @@ def main(argv=None) -> int:
             if not sha:
                 sha = hashlib.sha256(b"").hexdigest()
         items.append((rel, sha, parsed, reason))
-    for _rel, _sha, parsed, reason in items:
+    locs_by_item = []
+    for _rel, _sha, parsed, _reason in items:
+        locs = []
         if parsed is not None:
             try:
-                _render(parsed, scrubber)
-            except Exception:  # noqa: BLE001 - surfaced again (and quarantined) in pass 2
+                locs = _locs(parsed)
+                _render(parsed, scrubber, locs)
+            except Exception:  # noqa: BLE001 - surfaced again (and quarantined) in the final pass
                 pass
+        locs_by_item.append(locs)
+
+    # pass 2: final render with evidence capture and PSN placement sentinels
     scrubber.identifiers = 0
     scrubber.stats.clear()
-
-    # pass 2: rewrite with the complete dictionaries
-    results = []  # (rel, sha, output_bytes|None, locs, reason)
-    for rel, sha, parsed, reason in items:
+    scrubber.sink, scrubber.table = [], []
+    results = []  # (rel, sha, text|None, locs, reason)
+    for fid, (rel, sha, parsed, reason) in enumerate(items):
         data, locs = None, []
         if parsed is not None:
+            scrubber.fid = fid
+            mark = (len(scrubber.sink), len(scrubber.table))
             try:
-                data, n = _render(parsed, scrubber)
                 locs = _locs(parsed)
+                data, n = _render(parsed, scrubber, locs)
             except Exception as exc:  # noqa: BLE001
                 reason, data, locs = reason_for(exc), None, []
+                del scrubber.sink[mark[0]:], scrubber.table[mark[1]:]
         results.append((rel, sha, data, locs, reason))
         log.event("file_done", status="quarantined" if data is None else "sanitized", records=len(locs))
     identifiers = scrubber.identifiers
 
+    # link: evidence per unit -> constrained clusters -> pseudonyms
+    unit_psn, link_stats = link_units(results, scrubber.sink, keys, policy)
+    repl, placed = resolve(scrubber.table, unit_psn)
+    log.event("linked", clusters=link_stats["clusters"], units=link_stats["units"], fragments=link_stats["fragments"])
+
     mapping = sanitize_paths([r[0] for r in results if r[2] is not None], scrubber.names, scrubber.ids)
     files, records = [], []
-    for rel, sha, data, locs, reason in results:
+    for fid, (rel, sha, data, locs, reason) in enumerate(results):
         if data is None:
             files.append({"input_sha256": sha, "output": None, "status": "quarantined", "reason": reason})
             continue
         out_rel = mapping[rel]
         dest = out / "sanitized" / out_rel
         try:
+            text = substitute(data.decode("utf-8"), repl).encode("utf-8")
             dest.parent.mkdir(parents=True, exist_ok=True)
-            dest.write_bytes(data)
-        except OSError as exc:
+            dest.write_bytes(text)
+        except Exception as exc:  # noqa: BLE001
             files.append({"input_sha256": sha, "output": None, "status": "quarantined", "reason": reason_for(exc)})
             continue
         files.append({"input_sha256": sha, "output": f"sanitized/{out_rel}", "status": "sanitized"})
-        records.extend({"file": f"sanitized/{out_rel}", "loc": loc, "patient": None} for loc in locs)
+        for loc in locs:
+            psn = patient_for(fid, loc, locs, unit_psn, placed)
+            records.append({"file": f"sanitized/{out_rel}", "loc": loc, "patient": psn})
 
     write_records(out / "records.jsonl", records)
     report = build_report(files, records, identifiers, time.monotonic() - t0, scrubber.stats)

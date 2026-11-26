@@ -4,7 +4,7 @@ from collections import Counter
 
 from cloak.detect.address import rewrite_address
 from cloak.detect.columns import header_role
-from cloak.detect.context import cue_name_spans
+from cloak.detect.context import cue_name_spans_typed
 from cloak.detect.guards import guard_spans, guarded, overlaps_guard
 from cloak.detect.ids import IdSet
 from cloak.detect.names import Gazetteer, NameDict, merge_spans
@@ -45,6 +45,19 @@ class Scrubber:
         self.ids = IdSet()
         self.identifiers = 0
         self.stats = Counter()
+        # Phase 4: event sink (per-record evidence) and PSN placement table, active only in the final render
+        self.sink = None        # list of (fid, rec, kind, value) or None
+        self.table = None       # list of (fid, rec, kind, fallback) or None
+        self.fid = 0
+        self.rec = "doc"
+
+    def emit(self, kind: str, value) -> None:
+        if self.sink is not None and value is not None and str(value).strip():
+            self.sink.append((self.fid, self.rec, kind, str(value)))
+
+    def sentinel(self, kind: str, fallback: str) -> str:
+        self.table.append((self.fid, self.rec, kind, fallback))
+        return f"@@PSN{len(self.table) - 1}@@"
 
     # ---- registration of known values -------------------------------------------------
     def learn(self, role: str, value) -> None:
@@ -71,6 +84,13 @@ class Scrubber:
         """Apply the action for `role` to one string. Returns (new_value, redaction_count)."""
         if not value.strip():
             return value, 0
+        if role is not None:
+            self.emit(role, value)
+        if self.table is not None and role in ("patient_name", "mrn"):
+            self.learn(role, value)
+            self.identifiers += 1
+            self.stats[ROLE_PLACEHOLDER[role]] += 1
+            return self.sentinel("name" if role == "patient_name" else "mrn", ROLE_PLACEHOLDER[role]), 1
         if role in ROLE_PLACEHOLDER and role not in ("village", "house", "locality", "landmark"):
             self.learn(role, value)
             self.identifiers += 1
@@ -121,14 +141,20 @@ class Scrubber:
         shadow, offs = normalize(text)
         guards = guard_spans(shadow)
         hard = find_hard(shadow)
+        if self.sink is not None:
+            for s in hard:
+                self.emit("hard:" + s.kind, shadow[s.start:s.end])
         fixed = [(s.start, s.end, PLACEHOLDER[s.kind]) for s in hard]
         phone_spans = [(s.start, s.end) for s in hard if s.kind == "PHONE"]
         for s, e in self.ids.find(shadow):
             fixed.append((s, e, "[ID]"))
+            self.emit("id:known", shadow[s:e])
         names = []
-        for s, e in cue_name_spans(shadow, phone_spans, self.names):
+        for s, e, kind in cue_name_spans_typed(shadow, phone_spans, self.names):
             if not overlaps_guard([g for g in guards if g[2] in ("doctor", "history", "ward", "hospital")], s, e):
                 names.append((s, e))
+                if kind in ("subject", "rel"):
+                    self.emit("name:" + kind, shadow[s:e])
         names += self.names.find(shadow, guards)
         names += Gazetteer.runs(shadow, guards)
         names = [(s, e) for s, e in merge_spans(names, shadow)]
@@ -219,7 +245,11 @@ class Scrubber:
                 total += n
                 pos = vend
                 continue
-            new, n = self.scrub_value(role, value.rstrip()) if role != "age_sex" else (value.rstrip(), 0)
+            if role == "age_sex":
+                self.emit("age_sex", value.rstrip())
+                new, n = value.rstrip(), 0
+            else:
+                new, n = self.scrub_value(role, value.rstrip())
             pieces.append(new + trail)
             total += n
             pos = vend

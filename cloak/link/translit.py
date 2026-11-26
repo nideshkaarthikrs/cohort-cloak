@@ -21,7 +21,7 @@ def to_latin(text: str) -> str:
 @lru_cache(maxsize=50000)
 def skeleton(token: str) -> str:
     """Phonetic skeleton: equal for common spelling variants and for Latin/Devanagari renderings."""
-    t = unicodedata.normalize("NFKD", to_latin(token)).casefold()
+    t = unicodedata.normalize("NFKD", to_latin(token).replace("M", "n").replace("~N", "n")).casefold()
     t = re.sub(r"[^a-z]", "", t)
     if not t:
         return ""
@@ -57,6 +57,19 @@ def name_tokens_for_key(name: str) -> list:
             continue
         out.append(t)
     return out
+
+
+_GENERIC_PLACE = frozenset({"khurd", "kalan", "kala", "nagar", "pur", "ganj"})
+
+
+def consonants(token: str) -> str:
+    """Vowel-free skeleton for place names, where schwa deletion makes vowels unreliable across scripts."""
+    return re.sub(r"[aeiou]", "", skeleton(token))
+
+
+def place_key(text: str) -> str:
+    toks = [consonants(t) for t in name_tokens_for_key(text)]
+    return " ".join(sorted(t for t in toks if len(t) >= 2))
 
 
 def name_key(name: str) -> str:

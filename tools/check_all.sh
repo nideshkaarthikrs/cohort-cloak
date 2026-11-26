@@ -28,6 +28,12 @@ python3 $KIT/check_dev.py --output out_a
 step "eval_dev"
 $PY tools/eval_dev.py --output out_a --truth $TRUTH
 
+step "linking diagnostics (precision/recall, wrong merges, traps)"
+$PY tools/link_diag.py --output out_a --truth $TRUTH --show 3 | cut -c1-300
+
+step "pseudonym consistency (every claimed PSN appears in its exported file)"
+$PY tools/psn_check.py --output out_a || FAIL=1
+
 step "clean-document token retention"
 $PY tools/clean_check.py --output out_a --truth $TRUTH || FAIL=1
 

@@ -132,3 +132,10 @@ def test_clean_documents_unchanged(tmp_path):
     assert (out / "sanitized/clean/f.csv").read_text() == clean
     assert json.loads((out / "sanitized/clean/c.json").read_text()) == {"wards": [{"ward": "Ward 4", "beds": 30}]}
     assert "platelets 137130 daily" in (out / "sanitized/clean/p.txt").read_text()
+
+
+def test_patient_name_key_inside_clinical_container_is_still_a_patient(tmp_path):
+    doc = {"results": [{"patient_name": "Zxq Unseenperson", "uhid": "ZZH-0077001", "test": "Hb", "value": 11.0}]}
+    out = _run(tmp_path, {"lab/bulk.json": json.dumps(doc)})
+    text = _only(out, "lab")
+    assert "Unseenperson" not in text and "ZZH-0077001" not in text and "Hb" in text

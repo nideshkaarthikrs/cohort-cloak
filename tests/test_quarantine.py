@@ -54,7 +54,7 @@ def test_json_behind_csv_extension_is_processed_as_json(tmp_path, runner):
     _, out, rep = _run(tmp_path, runner, {"x/mislabeled.csv": data})
     assert entry_for(rep, data)["status"] == "sanitized"
     obj = json.loads((out / "sanitized/x/mislabeled.csv").read_text(encoding="utf-8"))
-    assert obj == {"patient": "[NAME]", "n": 3}
+    assert obj["n"] == 3 and obj["patient"].startswith("PSN-")
 
 
 def test_duplicate_files_both_reported(tmp_path, runner):

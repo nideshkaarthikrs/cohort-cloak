@@ -52,7 +52,8 @@ def transform_csv(header, body, scrubber):
             seen["[COLUMN]"] = c
             new_header.append("[COLUMN]" if c == 1 else f"[COLUMN]-{c}")
     new_body = []
-    for row in body:
+    for ri, row in enumerate(body):
+        scrubber.rec = f"row:{ri}"
         out = []
         for j, cell in enumerate(row):
             role = roles[j] if j < len(roles) else None
@@ -66,6 +67,7 @@ def transform_csv(header, body, scrubber):
             out.append(new)
             count += n
         new_body.append(out)
+    scrubber.rec = "doc"
     return new_header, new_body, count
 
 
@@ -81,7 +83,8 @@ def _leaf_role(key, ctx: _Ctx):
     """Role for a scalar under `key` given the inherited context."""
     nk = _nk(key)
     own, _ = header_role(key)
-    if ctx.person == "keep" and (own in (None, "patient_name", "doctor", "hospital") or nk in _GENERIC):
+    explicit_patient = own == "patient_name" and nk not in ("name", "fullname", "naam", "nam")
+    if ctx.person == "keep" and not explicit_patient and (own in (None, "patient_name", "doctor", "hospital") or nk in _GENERIC):
         return "doctor"
     if own == "patient_name":
         return "relative_name" if ctx.relative else "patient_name"
@@ -124,9 +127,11 @@ def _child_ctx(key, value, ctx: _Ctx, parent_dict) -> _Ctx:
     return _Ctx(role, person, relative, ref)
 
 
-def transform_json(data, scrubber, collect=False):
+def transform_json(data, scrubber, locs=()):
     """Return (new_data, count)."""
     count = [0]
+    loc_set = set(locs) - {"doc"}
+    scrubber.rec = "doc"
 
     def scalar(key, v, ctx):
         if isinstance(v, bool) or v is None or isinstance(v, float):
@@ -153,7 +158,11 @@ def transform_json(data, scrubber, collect=False):
                     count[0] += 1
                     return encode_b64_text(ATTACHMENT_PLACEHOLDER)
             else:
-                new, n = scrubber.scrub_text(text, doc_labels=True)
+                saved, scrubber.table = scrubber.table, None  # no PSN sentinel inside an encoded payload
+                try:
+                    new, n = scrubber.scrub_text(text, doc_labels=True)
+                finally:
+                    scrubber.table = saved
                 count[0] += n
                 return encode_b64_text(new)
         if _nk(key or "") == "div":
@@ -166,7 +175,18 @@ def transform_json(data, scrubber, collect=False):
         count[0] += n
         return new
 
-    def walk(v, key, ctx):
+    def walk(v, key, ctx, path=()):
+        if loc_set and len(path) in (1, 2):
+            ptr = "/" + "/".join(str(p).replace("~", "~0").replace("/", "~1") for p in path)
+            if ptr in loc_set:
+                prev, scrubber.rec = scrubber.rec, ptr
+                try:
+                    return _walk(v, key, ctx, path)
+                finally:
+                    scrubber.rec = prev
+        return _walk(v, key, ctx, path)
+
+    def _walk(v, key, ctx, path):
         if isinstance(v, dict):
             rt = v.get("resourceType")
             if isinstance(rt, str) and rt in _RESOURCE_PERSON:
@@ -186,10 +206,10 @@ def transform_json(data, scrubber, collect=False):
                     count[0] += 1
                 else:
                     nk = k
-                out[nk] = walk(x, k, _child_ctx(k, x, ctx, v) if isinstance(x, (dict, list)) else ctx)
+                out[nk] = walk(x, k, _child_ctx(k, x, ctx, v) if isinstance(x, (dict, list)) else ctx, path + (k,))
             return out
         if isinstance(v, list):
-            return [walk(x, key, ctx) for x in v]
+            return [walk(x, key, ctx, path + (i,)) for i, x in enumerate(v)]
         return scalar(key, v, ctx)
 
     return walk(data, None, _Ctx()), count[0]
