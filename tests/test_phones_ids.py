@@ -88,3 +88,11 @@ def test_find_hard_is_linear_on_a_very_long_token():
     assert time.monotonic() - t0 < 2.0
     kinds = sorted(s.kind for s in spans)
     assert kinds == ["ABHA", "EMAIL", "PHONE"]
+
+
+def test_parenthesised_area_code_phone_is_found_but_a_range_is_not():
+    from cloak.detect.patterns import find_hard
+    for raw in ("(784) 401-7364", "(784)401-7364", "(784) 4017364"):
+        spans = find_hard(f"call {raw} today")
+        assert [s.kind for s in spans] == ["PHONE"], raw
+    assert find_hard("BP (120) 80-90 mmHg") == []

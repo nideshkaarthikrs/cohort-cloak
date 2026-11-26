@@ -313,6 +313,8 @@ class Scrubber:
         self._scrub_encoded = lambda t: (t, 0)  # prevent recursion into the same layers
         self.in_payload += 1
         try:
+            if re.fullmatch(r"\s*[1-8]\d{5}\s*", text):
+                return self.scrub_value("pin", text.strip())  # a payload that is only a postal code
             return self.scrub_text(text, doc_labels=doc_labels) if doc_labels else self._scrub_plain(text)
         finally:
             self._scrub_encoded = saved

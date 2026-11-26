@@ -267,3 +267,13 @@ def test_pipe_file_with_title_rows_above_the_header_is_a_table(tmp_path):
     blob = out["p/b.psv"]
     for leak in ("Zanthippe", "421101", "421204", "9876501234", "Okwuosa"):
         assert leak not in blob, leak
+
+
+def test_base64_payload_that_is_only_a_pin_is_generalised(tmp_path):
+    import base64
+    b = lambda s: base64.b64encode(s.encode()).decode()
+    doc = {"note": "stable", "frag": [{"title": "pin", "data": b("421101")}, {"title": "phone", "data": b("(784) 401-7364")}]}
+    out = run(tmp_path, {"x/a.json": doc})
+    text = out["x/a.json"]
+    assert b("421101") not in text and b("(784) 401-7364") not in text
+    assert b("421***") in text or "[PIN]" in text or b("[PIN]") in text

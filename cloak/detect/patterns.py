@@ -8,7 +8,7 @@ import re
 from cloak.detect.validators import ascii_digits, phone_core
 from cloak.model import Span
 
-_PHONE_RUN = re.compile(r"(?<![\w.])(?:\+|00)?\d(?:[ \-]?\d){9,13}(?![\w]|[ \-]?\d)")
+_PHONE_RUN = re.compile(r"(?<![\w.])(?:\+|00)?(?:\d(?:[ \-]?\d){9,13}|\(\d{3}\)[ \-]?\d{3}[ \-]?\d{4})(?![\w]|[ \-]?\d)")
 _AADHAAR = re.compile(r"(?<![\w])[2-9]\d{3}[ \-]?\d{4}[ \-]?\d{4}(?![\w]|[ \-]?\d)")
 _AADHAAR_MASK = re.compile(r"(?<![\w])[Xx*•]{4}[ \-]?[Xx*•]{4}[ \-]?\d{4}(?!\d)")
 _ABHA = re.compile(r"(?<![\w])\d{2}-\d{4}-\d{4}-\d{4}(?!\d)|(?<![\w])\d{14}(?!\d)")
