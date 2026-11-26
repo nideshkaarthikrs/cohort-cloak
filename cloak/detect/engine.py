@@ -252,9 +252,20 @@ class Scrubber:
                     names.append((a, a + len(m.group(1))))
         names = [(s, e) for s, e in merge_spans(names, shadow)]
         spans = list(fixed)
+        places = [(a, b) for a, b, ph in fixed if ph == "[VILLAGE]" or (isinstance(ph, tuple) and ph[0] == "village")]
         for s, e in names:
-            if not any(s < b and a < e for a, b, _ in fixed):
+            hit = [(a, b) for a, b, _ in fixed if s < b and a < e]
+            if not hit:
                 spans.append((s, e, "[NAME]"))
+            elif all(h in places for h in hit):  # a surname that doubles as a village must not hide the given names before it
+                pos = s
+                for a, b in sorted(hit):
+                    if a > pos and re.search(r"[^\W\d_]{3}", shadow[pos:a]):
+                        spans.append((pos, pos + len(shadow[pos:a].rstrip()), "[NAME]"))
+                    pos = max(pos, b)
+                if e > pos and re.search(r"[^\W\d_]{3}", shadow[pos:e]):
+                    lead = len(shadow[pos:e]) - len(shadow[pos:e].lstrip())
+                    spans.append((pos + lead, e, "[NAME]"))
         spans = self._resolve(spans)
         mapped = []
         for s, e, ph in spans:

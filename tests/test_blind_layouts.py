@@ -277,3 +277,13 @@ def test_base64_payload_that_is_only_a_pin_is_generalised(tmp_path):
     text = out["x/a.json"]
     assert b("421101") not in text and b("(784) 401-7364") not in text
     assert b("421***") in text or "[PIN]" in text or b("[PIN]") in text
+
+
+def test_name_whose_surname_is_also_a_village_keeps_its_given_names_removed(tmp_path):
+    note = ("Review: Zuhairina Tasveen Barqoli explained the journey from Barqoli; letter via ;;Barqoli;;;422131. "
+            "Accompanied by D/o Nafeer Barqoli. BP 120/80.\n")
+    out = run(tmp_path, {"n/a.txt": note})
+    text = out["n/a.txt"]
+    for leak in ("Zuhairina", "Tasveen", "Nafeer", "Barqoli", "422131"):
+        assert leak not in text, leak
+    assert "120/80" in text
