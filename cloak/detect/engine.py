@@ -232,8 +232,9 @@ class Scrubber:
         for s, e, kind in cue_name_spans_typed(shadow, phone_spans, self.names):
             if not overlaps_guard([g for g in guards if g[2] in ("doctor", "history", "ward", "hospital")], s, e):
                 names.append((s, e))
-                if kind in ("subject", "rel"):
-                    self.emit("name:" + kind, shadow[s:e])
+                if kind in ("subject", "rel", "chat"):
+                    if kind != "chat":
+                        self.emit("name:" + kind, shadow[s:e])
                     if not self.policy.get("ablate_names"):
                         self.names.add(shadow[s:e])  # a name a strong cue found here is known in every other text
         for m in _GENERIC_ID.finditer(shadow):

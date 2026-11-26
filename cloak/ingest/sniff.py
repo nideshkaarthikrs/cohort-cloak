@@ -73,7 +73,7 @@ def sniff_delimiter(text: str, ext: str) -> str:
             continue
         if lead and not all(1 <= c <= mode for c in counts[:lead]):
             continue
-        if any(c.count(" ") >= 5 for c in rows[lead]):
+        if any(c.strip().count(" ") >= 5 for c in rows[lead]):
             continue  # a prose or key=value log line, not a header row
         best = d
         break

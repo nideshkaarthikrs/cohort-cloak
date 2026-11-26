@@ -41,6 +41,13 @@ def _contains(tokens, phrase_tokens) -> bool:
     return any(tokens[i:i + n] == phrase_tokens for i in range(len(tokens) - n + 1))
 
 
+_NON_PERSON = frozenset((
+    "generic drug drugs medicine medication tablet capsule item product brand service test tests panel procedure package scheme plan "
+    "ward department dept facility company lab laboratory investigation specimen sample organism ingredient salt molecule formulation "
+    "supplier vendor manufacturer location city branch unit clinic hospital bed room building file form report document template "
+    "diagnosis disease condition symptom complaint specialty category class group").split())
+
+
 @lru_cache(maxsize=100000)
 def header_role(header: str):
     """Return (role, score) for a header/label/key, or (None, 0.0)."""
@@ -57,7 +64,9 @@ def header_role(header: str):
         if _contains(tokens, pt):
             key = (len(pt), len(phrase))
             if best is None or key > best[0]:
-                best = (key, role)
+                best = (key, role, phrase)
+    if best and best[1] == "patient_name" and best[0][0] == 1 and _NON_PERSON & set(tokens):
+        return None, 0.0  # "Drug name", "Test name": a bare `name` next to a thing-word is not a person
     if best:
         return best[1], 0.9
     if len(h) >= 5:
@@ -115,7 +124,8 @@ def infer_roles(header, rows, sample: int = 300) -> list:
                     role = HARD_KIND_ROLE[kind]
             if role is None and n >= 2:
                 ids = [c for c in cells if looks_like_id(c)]
-                if len(ids) / n >= 0.8 and len(set(cells)) / n >= 0.7:
+                mixed = [c for c in cells if _ID_MIXED.match(c)]  # letters and digits: a patient's record number repeats on each of their rows
+                if (len(ids) / n >= 0.8 and len(set(cells)) / n >= 0.7) or (len(mixed) / n >= 0.8 and len(set(cells)) / n >= 0.3):
                     role = "mrn"  # unknown header, values are reference numbers: fail closed
             if role is None and n >= 5:
                 pins = [c for c in cells if re.fullmatch(r"[1-8]\d{5}", c)]

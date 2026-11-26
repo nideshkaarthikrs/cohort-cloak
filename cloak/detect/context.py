@@ -169,7 +169,7 @@ def cue_name_spans_typed(text: str, phone_spans=(), dictionary=None) -> list:
         for m in rx.finditer(text):
             seg = m.group(1)
             if not re.search(r"\d{4,}", seg) and not is_non_name(seg.split()[0]):
-                out.append((m.start(1), m.end(1), "weak"))
+                out.append((m.start(1), m.end(1), "chat"))  # a chat sender: a name worth remembering, but not linking evidence
     for s, _e in phone_spans:
         base = max(0, s - 60)
         m = _NEAR_PHONE_LEFT.search(text[base:s])

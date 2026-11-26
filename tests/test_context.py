@@ -165,3 +165,10 @@ def test_hindi_patient_noun_does_not_swallow_ordinary_words_but_still_cues_known
         assert scrub(t) == t
     assert "राम" not in scrub("मरीज राम को बुखार है।")
     assert "सुमन" not in scrub("श्रीमती सुमन वर्मा आज आईं।")  # an honorific still cues any name
+
+
+def test_a_whatsapp_sender_is_learned_as_a_name_for_other_texts():
+    sc = Scrubber(POLICY)
+    sc.scrub_text("06/11/2026, 07:11 - Quillfeather: hello sir, my son is unwell\n", doc_labels=True)
+    out, _ = sc.scrub_text("the visit with quillfeather went well, said Quillfeather.", doc_labels=True)
+    assert "uillfeather" not in out

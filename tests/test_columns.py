@@ -58,3 +58,22 @@ def test_header_says_notes_but_values_are_phones():
 def test_c_o_and_k_c_o_labels_are_clinical_not_relative():
     assert header_role("C/O")[0] != "relative_name" and header_role("K/C/O")[0] != "relative_name"
     assert header_role("S/D/W of")[0] == "relative_name"
+
+
+def test_a_name_header_with_a_non_person_qualifier_is_not_a_person_column():
+    from cloak.detect.columns import header_role
+    for h in ("Generic name", "Drug name", "Test name", "Item name", "Service name", "Brand name", "Ward name",
+              "Product name", "Name of drug", "Name of test", "Tablet name", "Vendor name", "Panel name"):
+        assert header_role(h)[0] != "patient_name", h
+    for h in ("Name", "Patient name", "Name (as per ID)", "Full name", "Applicant name", "Name of patient", "Beneficiary name"):
+        assert header_role(h)[0] == "patient_name", h
+
+
+def test_unknown_header_column_of_repeating_record_numbers_is_an_id_column():
+    from cloak.detect.columns import infer_roles
+    body = [["x", "TC/KA/3391"], ["y", "TC/KA/3391"], ["z", "TC/KA/3418"], ["w", "TC/KA/3418"], ["v", "TC/KA/3418"]]
+    assert infer_roles(["a", "ಕ್ರ.ಸಂ."], body)[1] == "mrn"
+    wards = [["x", "ICU-4"], ["y", "ICU-4"], ["z", "W-12"], ["w", "W-12"], ["v", "ICU-4"]]
+    assert infer_roles(["a", "b"], wards)[1] is None
+    batch = [["x", "B2026"], ["y", "B2026"], ["z", "B2026"], ["w", "B2026"], ["v", "B2026"]]
+    assert infer_roles(["a", "b"], batch)[1] is None

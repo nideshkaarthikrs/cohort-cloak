@@ -22,3 +22,11 @@ def test_collisions_made_unique_and_deterministic():
 def test_spaces_and_parens_in_ids():
     out = sanitize_path("registration/ADM000161 note (3).txt")
     assert "000161" not in out
+
+
+def test_chat_export_names_a_person_after_chat_with():
+    from cloak.rewrite.filenames import _clean_component
+    assert _clean_component("WhatsApp Chat with Zorbak Quillfeather.txt") == "WhatsApp Chat with NAME.txt"
+    assert _clean_component("WhatsApp Chat with Quillfeather.txt") == "WhatsApp Chat with NAME.txt"
+    assert _clean_component("Chat with Mireli_Vanthorp 2026.txt") == "Chat with NAME 2026.txt"
+    assert _clean_component("Notes with Insulin.txt") == "Notes with Insulin.txt"

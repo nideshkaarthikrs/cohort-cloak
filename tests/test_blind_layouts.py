@@ -287,3 +287,13 @@ def test_name_whose_surname_is_also_a_village_keeps_its_given_names_removed(tmp_
     for leak in ("Zuhairina", "Tasveen", "Nafeer", "Barqoli", "422131"):
         assert leak not in text, leak
     assert "120/80" in text
+
+
+def test_padded_pipe_table_with_a_long_header_cell_is_still_a_table(tmp_path):
+    t = ("Bill no | Reg | Name (as per ID) | Service | Amount\n"
+         "B-1 | TC/KA/3391 | ZORBAK QUILLFEATHER S | Consultation | 300\n"
+         "B-1 | TC/KA/3391 | ZORBAK QUILLFEATHER S | CBC + SGOT | 450\n"
+         "B-2 | TC/KA/3418 | MIRELA T VANTHORP | Urine Copper | 1500\n")
+    out = run(tmp_path, {"bills.psv": t})["bills.psv"]
+    assert "QUILLFEATHER" not in out and "VANTHORP" not in out
+    assert "Consultation" in out and "CBC + SGOT" in out
