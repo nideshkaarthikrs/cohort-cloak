@@ -171,3 +171,29 @@ def test_devanagari_words_next_to_a_redacted_name_belong_to_it(tmp_path):
     for w in ("मृण्मय", "देशमुले", "ध्रुवज्योति"):
         assert w not in out
     assert "बुखार" in out
+
+
+INDIC_NAMES = ["మధుకర్ వెలగంటి", "ਜਸਵਿੰਦਰ ਖੁਰਮਾਣੀ", "നിരഞ്ജിത സോമൻ വെള്ളൂരൻ", "অরূপ কাঞ্জিল", "ಶಶಿಧರ ಬೆಳವಡಿ",
+               "ବିଶ୍ୱଜିତ ବରାଳିକା", "சோமன் வெள்ளூரன்", "રમેશ પટેલ", "محمد عرفان خان"]
+
+
+def test_names_in_every_indian_script_are_redacted_in_unknown_columns_and_prose(tmp_path):
+    rows = "\n".join(f"{i + 1},{n},{n.split()[-1]} {n.split()[0]},ग्राम{i}" for i, n in enumerate(INDIC_NAMES))
+    out = run(tmp_path, {"a.csv": "no,col_a,col_b,col_c\n" + rows + "\n",
+                         "b.txt": "Visit note: " + " ; ".join(INDIC_NAMES) + " came today.\n"})
+    blob = "\n".join(out.values())
+    for name in INDIC_NAMES:
+        for tok in name.split():
+            assert tok not in blob, tok
+
+
+def test_latin_name_learned_matches_its_bengali_and_gurmukhi_spelling_in_prose(tmp_path):
+    csv = "uhid,patient name,age\nZZH-000001,Arup Kanjilal,40\nZZH-000002,Jaswinder Khurmani,52\nZZH-000003,Sita Mehra,33\n"
+    out = run(tmp_path, {"r.csv": csv, "n.txt": "রোগী অরূপ কাঞ্জিল এবং ਜਸਵਿੰਦਰ ਖੁਰਮਾਣੀ ਆਏ।\n"})["n.txt"]
+    for tok in ("অরূপ", "কাঞ্জিল", "ਜਸਵਿੰਦਰ", "ਖੁਰਮਾਣੀ"):
+        assert tok not in out, tok
+
+
+def test_marathi_month_names_are_dates(tmp_path):
+    out = run(tmp_path, {"a.txt": "D.O.B : 13 जानेवारी 1999\nभेट 12 डिसेंबर 2023 रोजी\n"})["a.txt"]
+    assert "जानेवारी 1999" not in out and "डिसेंबर 2023" not in out

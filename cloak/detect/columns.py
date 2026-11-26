@@ -15,7 +15,7 @@ PII_ROLES = {"patient_name", "person_name", "relative_name", "phone", "email", "
 
 _CAMEL = re.compile(r"(?<=[a-z0-9])(?=[A-Z])")
 _NAME_LATIN = re.compile(r"^(?:[A-Z][A-Za-z'.\-]+|[A-Z]\.)(?:\s+(?:[A-Z][A-Za-z'.\-]+|[A-Z]\.)){0,3}$")
-_NAME_DEVA = re.compile(r"^[ऀ-ॿ]+(?:\s+[ऀ-ॿ]+){0,3}$")
+_NAME_DEVA = re.compile(r"^[ऀ-ൿء-ٟٱ-ۓ]+(?:\s+[ऀ-ൿء-ٟٱ-ۓ]+){0,3}$")
 
 
 def norm_header(h: str) -> str:

@@ -9,7 +9,7 @@ EN_FULL = ["january", "february", "march", "april", "may", "june", "july", "augu
 EN_ABBR = [m[:3] for m in EN_FULL]
 HI_MONTHS = ["जनवरी", "फ़रवरी", "मार्च", "अप्रैल", "मई", "जून", "जुलाई", "अगस्त", "सितंबर", "अक्टूबर", "नवंबर", "दिसंबर"]
 _HI_LOOKUP = {m: i + 1 for i, m in enumerate(HI_MONTHS)}
-_HI_LOOKUP.update({"फरवरी": 2, "सितम्बर": 9, "नवम्बर": 11, "दिसम्बर": 12})
+_HI_LOOKUP.update({"फरवरी": 2, "सितम्बर": 9, "नवम्बर": 11, "दिसम्बर": 12, "जानेवारी": 1, "फेब्रुवारी": 2, "एप्रिल": 4, "मे": 5, "जुलै": 7, "ऑगस्ट": 8, "सप्टेंबर": 9, "ऑक्टोबर": 10, "नोव्हेंबर": 11, "डिसेंबर": 12})
 _EN_LOOKUP = {}
 for _i, (_f, _a) in enumerate(zip(EN_FULL, EN_ABBR)):
     _EN_LOOKUP[_f] = _i + 1

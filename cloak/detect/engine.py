@@ -42,9 +42,9 @@ def dob_year(value: str) -> str:
     return m.group(1) if m else "[DOB]"
 
 
-_DEVA_ANY = re.compile(r"[ऀ-ॿ]")
-_DEVA_AFTER = re.compile(r"[ \t]+([ऀ-ॣॱ-ॿ]{3,})(?![ऀ-ॿ])")
-_DEVA_BEFORE = re.compile(r"([ऀ-ॣॱ-ॿ]{3,})[ \t]+\Z")
+_DEVA_ANY = re.compile(r"[ऀ-ൿء-ٟٱ-ۓ]")
+_DEVA_AFTER = re.compile(r"[ \t]+([ऀ-ॣॱ-ൿء-ٟٱ-ۓ]{3,})(?![ऀ-ൿء-ٟٱ-ۓ])")
+_DEVA_BEFORE = re.compile(r"([ऀ-ॣॱ-ൿء-ٟٱ-ۓ]{3,})[ \t]+\Z")
 _GENERIC_ID = re.compile(r"(?<![A-Za-z0-9])([A-Z]{2,5})[/~@.\-_:#{}\\]{1,2}\d{2,6}(?:[/~@.\-_:#{}\\]{1,2}[A-Za-z0-9]{1,6}){1,3}(?![A-Za-z0-9])")
 _B64_TOKEN = re.compile(r"(?<![A-Za-z0-9+/])[A-Za-z0-9+/]{8,}={0,2}(?![A-Za-z0-9+/=])")
 _TOKEN_ROLES = frozenset({"phone", "aadhaar", "abha", "pan", "insurance", "mrn", "email", "pin", "dob"})

@@ -7,15 +7,31 @@ from indic_transliteration import sanscript
 
 from cloak.detect.lexicon import STOP, TITLES, variant_groups
 
-_DEVA = re.compile(r"[ऀ-ॿ]")
-_SPLIT = re.compile(r"[^A-Za-zऀ-ॿ']+")
+_DEVA = re.compile(r"[ऀ-ൿ]")
+_SPLIT = re.compile(r"[^A-Za-zऀ-ൿء-ٟٱ-ۓ']+")
 
 
 @lru_cache(maxsize=50000)
 def to_latin(text: str) -> str:
     if not _DEVA.search(text):
         return text
-    return sanscript.transliterate(text, sanscript.DEVANAGARI, sanscript.ITRANS)
+    return "".join(_run(m.group(0)) for m in _RUNS.finditer(text)) if _DEVA.search(text) else text
+
+
+_SCHEMES = ((0x0900, 0x097F, sanscript.DEVANAGARI), (0x0980, 0x09FF, sanscript.BENGALI), (0x0A00, 0x0A7F, sanscript.GURMUKHI),
+            (0x0A80, 0x0AFF, sanscript.GUJARATI), (0x0B00, 0x0B7F, sanscript.ORIYA), (0x0B80, 0x0BFF, sanscript.TAMIL),
+            (0x0C00, 0x0C7F, sanscript.TELUGU), (0x0C80, 0x0CFF, sanscript.KANNADA), (0x0D00, 0x0D7F, sanscript.MALAYALAM))
+_RUNS = re.compile(r"[ऀ-ൿ]+|[^ऀ-ൿ]+")
+
+
+def _run(chunk: str) -> str:
+    if not _DEVA.match(chunk):
+        return chunk
+    cp = ord(chunk[0])
+    for lo, hi, scheme in _SCHEMES:
+        if lo <= cp <= hi:
+            return sanscript.transliterate(chunk, scheme, sanscript.ITRANS)
+    return chunk
 
 
 @lru_cache(maxsize=50000)

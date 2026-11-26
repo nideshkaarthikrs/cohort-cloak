@@ -11,7 +11,7 @@ from cloak.rewrite.keys_headers import safe_header, safe_key
 REDACTED = "[REDACTED]"
 _UUID = re.compile(r"^(urn:uuid:)?[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$")
 _NAMEY_RUN = re.compile(r"(?<![A-Za-z])[A-Z][a-z]{2,}(?:\s+[A-Z][a-z]{2,})+(?![A-Za-z])")
-_DEVA_NAME = re.compile(r"^\s*[ऀ-ॿ]+(?:\s+[ऀ-ॿ]+){0,3}\s*$")
+_DEVA_NAME = re.compile(r"^\s*[ऀ-ൿء-ٟٱ-ۓ]+(?:\s+[ऀ-ൿء-ٟٱ-ۓ]+){0,3}\s*$")
 _GENERIC = {"text", "value", "display", "given", "family", "line", "data", "first", "last", "local", "prefix",
             "suffix", "middle", "full", "official", "nickname", "content", "string", "valuestring"}
 _NAME_PARTS = {"text", "display", "given", "family", "first", "last", "local", "prefix", "suffix", "middle", "full",

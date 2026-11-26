@@ -1,5 +1,7 @@
 """Name knowledge: the run-time known-name dictionary and the Faker/hand-written gazetteer."""
 import re
+
+from rapidfuzz import fuzz, process
 import unicodedata
 from functools import lru_cache
 
@@ -9,8 +11,8 @@ from cloak.link.translit import skeleton
 
 _TITLES = TITLES
 _STOP = STOP
-_TOKEN_SPLIT = re.compile(r"[^\wऀ-ॿ']+")
-_WORD = re.compile(r"[A-Za-z]+(?:'[A-Za-z]+)?|[ऀ-ॣॱ-ॿ]+")
+_TOKEN_SPLIT = re.compile(r"[^\wऀ-ൿء-ٟٱ-ۓ']+")
+_WORD = re.compile(r"[A-Za-z]+(?:'[A-Za-z]+)?|[ऀ-ॣॱ-ൿء-ٟٱ-ۓ]+")
 _GAP = re.compile(r"[ \t.,]{1,2}")
 
 
@@ -47,7 +49,7 @@ def name_tokens(name: str) -> list:
         t = norm_token(raw)
         if not t or t in _TITLES or t in _STOP or any(ch.isdigit() for ch in t) or "_" in t:
             continue
-        if len(t) < 3 and not re.search(r"[ऀ-ॿ]", t):
+        if len(t) < 3 and not re.search(r"[ऀ-ൿء-ٟٱ-ۓ]", t):
             continue
         if len(t) < 2:
             continue
@@ -56,7 +58,7 @@ def name_tokens(name: str) -> list:
 
 
 def _is_capitalised(w: str) -> bool:
-    return w[:1].isupper() or bool(re.match(r"[ऀ-ॿ]", w))
+    return w[:1].isupper() or bool(re.match(r"[ऀ-ൿء-ٟٱ-ۓ]", w))
 
 
 def iter_words(text: str):
@@ -82,17 +84,36 @@ class NameDict:
     def __init__(self):
         self._tokens = set()
         self._skels = set()
+        self._cons = {}
+        self._cons_list = {}
+        self._memo = {}
 
     def __len__(self):
         return len(self._tokens)
 
     def add(self, name: str, kind: str = "patient") -> None:
+        fresh = []
         for t in name_tokens(name):
-            self._tokens.add(t)
+            fresh.append(t)
             for g in variant_groups():
                 if t in g:
-                    self._tokens.update(x for x in g if len(x) >= 3)  # 'md' is also a credential
-        self._skels = {s for s in (skeleton(t) for t in self._tokens) if len(s) >= 3}
+                    fresh.extend(x for x in g if len(x) >= 3)  # 'md' is also a credential
+        grew = False
+        for t in fresh:
+            if t in self._tokens:
+                continue
+            self._tokens.add(t)
+            sk = skeleton(t)
+            if len(sk) >= 3:
+                self._skels.add(sk)
+                c = re.sub(r"[aeiou]", "", sk)  # vowel-free: other scripts keep or drop schwas differently from Latin
+                if len(c) >= 3:
+                    if c not in self._cons.setdefault(c[0], set()):
+                        self._cons[c[0]].add(c)
+                        self._cons_list.setdefault(c[0], []).append(c)
+            grew = True
+        if grew:
+            self._memo = {}
 
     def has_token(self, tok: str) -> bool:
         return norm_token(tok) in self._tokens
@@ -105,7 +126,17 @@ class NameDict:
             return True
         if len(n) >= 4 and n not in medical_words() and n not in words("hinglish_stopwords.txt"):
             s = skeleton(w)
-            return len(s) >= 3 and s in self._skels
+            if len(s) >= 3 and s in self._skels:
+                return True
+            if not w.isascii():
+                hit = self._memo.get(w)
+                if hit is None:
+                    c = re.sub(r"[aeiou]", "", s)
+                    cands = self._cons.get(c[:1], ()) if len(c) >= 3 else ()
+                    hit = c in cands or (len(c) >= 4 and bool(cands) and
+                                         process.extractOne(c, self._cons_list[c[0]], scorer=fuzz.ratio, score_cutoff=88) is not None)
+                    self._memo[w] = hit
+                return hit
         return False
 
     def find(self, text: str, guards=None) -> list:
@@ -141,7 +172,7 @@ class Gazetteer:
     def kind(w: str):
         """'given', 'surname', 'both' or None for a word."""
         n = norm_token(w)
-        if len(n) < 3 and not re.match(r"[ऀ-ॿ]", n):
+        if len(n) < 3 and not re.match(r"[ऀ-ൿء-ٟٱ-ۓ]", n):
             return None
         if n in medical_words() or n in words("hinglish_stopwords.txt") or n in _STOP or n in _TITLES:
             return None
