@@ -255,7 +255,7 @@ Not used: regex, dateparser, fhir.resources, sklearn-crfsuite, spaCy, splink. An
 | Phase | Status | Gate result | Commit |
 |---|---|---|---|
 | 0 Plan | done | plan approved | |
-| 1 Skeleton & contract | todo | | |
+| 1 Skeleton & contract | done | PASS: CONTRACT OK, canaries 0/4, raw copies 0, determinism identical, secret grep clean, 29 tests | Phase 1 |
 | 2 Structured detection | todo | | |
 | 3 Free-text detection | todo | | |
 | 4 Linkage & PSN | todo | | |
@@ -265,6 +265,7 @@ Not used: regex, dateparser, fhir.resources, sklearn-crfsuite, spaCy, splink. An
 
 ## 11. Running log
 - 2026-11-26 Phase 0: kit read, starter baseline: leak 84.1%, canaries 4/4, medical 100%, linking 0, CONTRACT OK. Plan approved.
+- 2026-11-26 Phase 1 (gate PASS): redact-all skeleton. CONTRACT OK; files 200 = 193 sanitized + 7 quarantined (3 unsupported_format, 1 invalid_encoding, 1 nesting_too_deep, 1 empty_file, 1 malformed_json); records 848 (truth units uncovered 0); canaries 0/4; raw copies 0; determinism IDENTICAL; secret grep clean; TMPDIR/HOME leftovers 0; wall <1 s, peak RSS 30 MB; pytest 29 passed. check_dev: leak 0.3% (9/3230, all PATIENT_NAME in filenames: filename channel 18.8%, Phase 2 fixes with the known-name dictionary); medical kept 617/4855 = 12.7% (expected, strings are redacted wholesale until Phase 2/3); linking 0 (patient=null everywhere, so a different secret cannot change output yet). Note: indic-transliteration pulls transitive deps (regex, typer, pydantic, rich, roman, toml); pinned top-level only.
 
 ## 12. Verification (end to end)
 ```bash

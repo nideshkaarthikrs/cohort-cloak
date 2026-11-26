@@ -1,0 +1,13 @@
+date_shift_max_days: 180
+age_band_years: 5
+age_top_code: 85
+dob_mode: shift          # shift | year | redact
+village_mode: district   # tehsil | district | redact
+tehsil_mode: keep        # keep | district
+pin_mode: prefix3        # prefix3 | redact
+rare_dx_max_patients: 3
+k_min: 3
+link_threshold: 10
+soft_link_margin: 3
+name_confidence_threshold: 0.6
+max_json_depth: 200

@@ -1,0 +1,142 @@
+"""Orchestration: ingest -> (redact) -> write, with a global exception guard."""
+import argparse
+import csv
+import hashlib
+import io
+import json
+import os
+import shutil
+import sys
+import time
+import traceback
+from pathlib import Path
+
+from cloak.errors import Quarantine, reason_for
+from cloak.ingest.records import csv_rows, json_locs
+from cloak.ingest.sniff import parse
+from cloak.keys import Keys
+from cloak.log import RunLog
+from cloak.policy import load_policy
+from cloak.report import build_report, write_records, write_report
+from cloak.rewrite.apply import redact_csv_rows, redact_json, redact_text
+from cloak.rewrite.filenames import sanitize_paths
+
+ROOT = Path(__file__).resolve().parent.parent
+
+
+def _excepthook(etype, _value, tb):
+    """Type and file:line frames only; the exception message may embed record content."""
+    frames = [f"{Path(f.filename).name}:{f.lineno}" for f in traceback.extract_tb(tb)]
+    sys.stderr.write(f"fatal {etype.__name__} at {' > '.join(frames[-6:])}\n")
+
+
+def _process(raw: bytes, ext: str, policy: dict):
+    """Return (output_bytes, locs, redaction_count). Raises on anything unprocessable."""
+    p = parse(raw, ext, int(policy["max_json_depth"]))
+    if p.kind in ("json", "fhir"):
+        out, n = redact_json(p.data)
+        text = json.dumps(out, ensure_ascii=False, indent=2) + "\n"
+        return text.encode("utf-8"), json_locs(p.data, p.kind == "fhir"), n
+    if p.kind == "csv":
+        rows = csv_rows(p.text, p.delimiter)
+        if not rows:
+            raise Quarantine("empty_file")
+        header, body = rows[0], rows[1:]
+        nh, nb, n = redact_csv_rows(header, body)
+        buf = io.StringIO()
+        w = csv.writer(buf, delimiter=p.delimiter, lineterminator="\n")
+        w.writerow(nh)
+        w.writerows(nb)
+        locs = [f"row:{i}" for i, r in enumerate(body) if any(c.strip() for c in r)]
+        return buf.getvalue().encode("utf-8"), locs, n
+    text, n = redact_text(p.text)
+    return text.encode("utf-8"), ["doc"], n
+
+
+def _list_files(inp: Path):
+    out = []
+    for dp, dn, fn in os.walk(inp):
+        dn.sort()
+        for name in sorted(fn):
+            out.append(Path(dp) / name)
+    return sorted(out, key=lambda p: p.relative_to(inp).as_posix())
+
+
+def main(argv=None) -> int:
+    sys.excepthook = _excepthook
+    sys.setrecursionlimit(3000)
+    ap = argparse.ArgumentParser(description="Cohort Cloak privacy firewall")
+    ap.add_argument("--input", required=True)
+    ap.add_argument("--output", required=True)
+    a = ap.parse_args(argv)
+    t0 = time.monotonic()
+    secret = os.environ.get("RAKSHA_SECRET", "")
+    if not secret:
+        print("error missing_secret")
+        return 2
+    inp, out = Path(a.input).resolve(), Path(a.output).resolve()
+    if not inp.is_dir():
+        print("error input_not_a_directory")
+        return 2
+    if out == inp or inp in out.parents or out in inp.parents:
+        print("error output_overlaps_input")
+        return 2
+    keys = Keys(secret.encode("utf-8"))  # noqa: F841 - used from Phase 4 on
+    policy = load_policy(ROOT / "config" / "policy.yaml")
+
+    for stale in ("sanitized", "logs"):
+        shutil.rmtree(out / stale, ignore_errors=True)
+    for stale in ("report.json", "records.jsonl"):
+        try:
+            (out / stale).unlink()
+        except FileNotFoundError:
+            pass
+    (out / "sanitized").mkdir(parents=True, exist_ok=True)
+    log = RunLog(out / "logs" / "run.log")
+
+    results = []  # (rel, sha, output_bytes|None, locs, reason)
+    identifiers = 0
+    for path in _list_files(inp):
+        rel = path.relative_to(inp).as_posix()
+        sha, data, locs, reason = "", None, [], None
+        try:
+            raw = path.read_bytes()
+            sha = hashlib.sha256(raw).hexdigest()
+            data, locs, n = _process(raw, path.suffix, policy)
+            identifiers += n
+        except Exception as exc:  # noqa: BLE001 - global guard: quarantine, record the class only
+            reason, data, locs = reason_for(exc), None, []
+            if not sha:
+                try:
+                    sha = hashlib.sha256(path.read_bytes()).hexdigest()
+                except OSError:
+                    sha = hashlib.sha256(b"").hexdigest()
+        results.append((rel, sha, data, locs, reason))
+        log.event("file_done", status="quarantined" if reason else "sanitized", records=len(locs))
+
+    mapping = sanitize_paths([r[0] for r in results if r[2] is not None])
+    files, records = [], []
+    for rel, sha, data, locs, reason in results:
+        if data is None:
+            files.append({"input_sha256": sha, "output": None, "status": "quarantined", "reason": reason})
+            continue
+        out_rel = mapping[rel]
+        dest = out / "sanitized" / out_rel
+        try:
+            dest.parent.mkdir(parents=True, exist_ok=True)
+            dest.write_bytes(data)
+        except OSError as exc:
+            files.append({"input_sha256": sha, "output": None, "status": "quarantined", "reason": reason_for(exc)})
+            continue
+        files.append({"input_sha256": sha, "output": f"sanitized/{out_rel}", "status": "sanitized"})
+        records.extend({"file": f"sanitized/{out_rel}", "loc": loc, "patient": None} for loc in locs)
+
+    write_records(out / "records.jsonl", records)
+    report = build_report(files, records, identifiers, time.monotonic() - t0)
+    write_report(out / "report.json", report)
+    log.event("run_done", files=len(files), records=len(records))
+    log.close()
+    c = report["counts"]
+    print(f"files {c['files_total']} sanitized {c['files_sanitized']} quarantined {c['files_quarantined']} "
+          f"records {c['records_processed']}")
+    return 0

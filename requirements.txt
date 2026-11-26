@@ -1,0 +1,6 @@
+rapidfuzz==3.9.7
+jellyfish==1.1.0
+indic-transliteration==2.3.83
+phonenumbers==8.13.45
+cryptography==43.0.3
+PyYAML==6.0.2
