@@ -100,3 +100,16 @@ def test_generic_words_after_patient_and_particles_kept():
     t = "Review after 2 weeks. Patient ne dawai li. Doctor ne dekha. Mother ko bataya."
     assert scrub(t) == t
     assert scrub("Referred to Dr. Anil Kapoor for opinion") == "Referred to Dr. Anil Kapoor for opinion"
+
+
+def test_cue_spans_stay_fast_and_correct_on_huge_single_lines():
+    import time
+    from cloak.detect.context import cue_name_spans_typed
+    for junk in ("ABCDE" * 20000, "नमस्ते" * 20000, "QUJD" * 25000):
+        text = "Patient Asha Verma came. " + junk + " S/o Ramesh Kumar seen."
+        t0 = time.monotonic()
+        spans = cue_name_spans_typed(text)
+        assert time.monotonic() - t0 < 10.0
+        found = {text[s:e] for s, e, _k in spans}
+        assert "Asha Verma" in found
+        assert "Ramesh Kumar" in found

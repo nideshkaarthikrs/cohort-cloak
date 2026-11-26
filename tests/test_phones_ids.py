@@ -77,3 +77,14 @@ def test_induced_shapes_do_not_match_words_plus_year():
         ids.add(v)
     assert ids.find("extracts for January-November 2026.") == []
     assert ids.find("file SNJ-26-099999 here") != []
+
+
+def test_find_hard_is_linear_on_a_very_long_token():
+    import time
+    from cloak.detect.patterns import find_hard
+    text = "Contact ravi.k@abdm and x@example.org " + "a" * 150000 + " 9876501234"
+    t0 = time.monotonic()
+    spans = find_hard(text)
+    assert time.monotonic() - t0 < 2.0
+    kinds = sorted(s.kind for s in spans)
+    assert kinds == ["ABHA", "EMAIL", "PHONE"]

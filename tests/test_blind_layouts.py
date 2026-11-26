@@ -197,3 +197,14 @@ def test_latin_name_learned_matches_its_bengali_and_gurmukhi_spelling_in_prose(t
 def test_marathi_month_names_are_dates(tmp_path):
     out = run(tmp_path, {"a.txt": "D.O.B : 13 जानेवारी 1999\nभेट 12 डिसेंबर 2023 रोजी\n"})["a.txt"]
     assert "जानेवारी 1999" not in out and "डिसेंबर 2023" not in out
+
+
+def test_line_with_endless_whitespace_is_not_quadratic():
+    import time
+    from cloak.detect.engine import _LABEL
+    line = "x" + " " * 60000 + "y"
+    t0 = time.monotonic()
+    list(_LABEL.finditer(line))
+    assert time.monotonic() - t0 < 2.0
+    m = _LABEL.search("Ward 4" + " " * 80 + "Phone: 9876501234")
+    assert m and m.group(1) == "Phone"

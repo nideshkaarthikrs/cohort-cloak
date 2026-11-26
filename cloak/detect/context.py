@@ -54,9 +54,30 @@ def _trim(start: int, end: int, text: str):
     return start + toks[0].start(), start + toks[-1].end()
 
 
+_CHUNK = 800
+
+
+def _chunks(text: str):
+    """Cut very long lines at whitespace (or hard at 2x) so no cue regex scans a huge unbroken run quadratically."""
+    pos, n = 0, len(text)
+    while pos < n:
+        end = min(n, pos + _CHUNK)
+        if end < n:
+            ws = text.rfind(" ", pos + _CHUNK // 2, end)
+            end = ws + 1 if ws > 0 else end
+        yield pos, end
+        pos = end
+
+
 def cue_name_spans_typed(text: str, phone_spans=(), dictionary=None) -> list:
     """(start, end, kind) name spans from context cues, on the shadow text.
     kind: 'rel' (relative/attendant/visitor), 'subject' (the patient or a person being discussed), 'weak'."""
+    if len(text) > 2 * _CHUNK:
+        res = []
+        for a, b in _chunks(text):
+            ph = [(s - a, e - a) for s, e in phone_spans if a <= s < b]
+            res += [(s + a, e + a, k) for s, e, k in cue_name_spans_typed(text[a:b], ph, dictionary)]
+        return sorted(set(res))
     out = []
 
     def add(m, kind, g=1):
