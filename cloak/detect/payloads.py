@@ -26,3 +26,35 @@ def decode_b64_text(s: str):
 
 def encode_b64_text(text: str) -> str:
     return base64.b64encode(text.encode("utf-8")).decode("ascii")
+
+
+# ---- other hidden encodings: percent-encoding, \uXXXX escapes, HTML entities -------------------------
+import html
+import re as _re
+from collections import namedtuple
+from urllib.parse import quote, unquote
+
+_PCT = _re.compile(r"(?:%[0-9A-Fa-f]{2}){2,}")
+_UESC = _re.compile(r"(?:\\u[0-9a-fA-F]{4}){2,}")
+_ENT = _re.compile(r"(?:&#(?:x[0-9a-fA-F]+|\d+);){2,}")
+_Layer = namedtuple("_Layer", "detect run")
+
+
+def _enc_uesc(text: str) -> str:
+    return "".join(c if ord(c) < 128 and c.isalnum() is False and c not in "\\" else f"\\u{ord(c):04x}"
+                   if ord(c) > 127 or c.isalnum() else c for c in text)
+
+
+def _enc_ent(text: str) -> str:
+    return "".join(f"&#{ord(c)};" if (c.isalnum() or ord(c) > 127) else c for c in text)
+
+
+def _dec_uesc(text: str) -> str:
+    return _re.sub(r"\\u([0-9a-fA-F]{4})", lambda m: chr(int(m.group(1), 16)), text)
+
+
+ENCODINGS = (
+    (_Layer(lambda t: bool(_PCT.search(t)), unquote), lambda t: quote(t, safe="")),
+    (_Layer(lambda t: bool(_UESC.search(t)), _dec_uesc), _enc_uesc),
+    (_Layer(lambda t: bool(_ENT.search(t)), html.unescape), _enc_ent),
+)

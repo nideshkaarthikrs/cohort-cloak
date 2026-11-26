@@ -68,3 +68,12 @@ def test_ascii_digits_and_core():
 def test_verhoeff():
     assert verhoeff_ok("2363")
     assert not verhoeff_ok("2364")
+
+
+def test_induced_shapes_do_not_match_words_plus_year():
+    from cloak.detect.ids import IdSet
+    ids = IdSet()
+    for v in ["DCSPS3454E", "ABHA-ABDM-1234", "SNJ/26/064127", "UHID-010610"]:
+        ids.add(v)
+    assert ids.find("extracts for January-November 2026.") == []
+    assert ids.find("file SNJ-26-099999 here") != []

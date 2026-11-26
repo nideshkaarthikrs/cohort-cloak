@@ -1,0 +1,5 @@
+# Words common in export file names / headings that are not personal names (lowercase)
+discharge summary report reports note notes lab labs bill billing claim claims patient patients export exports opd ipd
+visit visits registration prescription prescriptions rx result results record records data file files scan scanned form
+consent ward nursing ds bundle copy final draft sample census log sheet vitals index tickets helpdesk ambulance protocol
+formulary reference ranges list mislabeled deep truncated corrupt empty

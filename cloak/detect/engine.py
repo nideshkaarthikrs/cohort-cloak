@@ -1,14 +1,18 @@
 """Text scrubber: hard identifiers, known IDs/shapes, known names, label-anchored fields, context cues."""
 import re
+from collections import Counter
 
 from cloak.detect.address import rewrite_address
 from cloak.detect.columns import header_role
 from cloak.detect.context import cue_name_spans
 from cloak.detect.guards import guard_spans, guarded, overlaps_guard
 from cloak.detect.ids import IdSet
-from cloak.detect.names import NameDict
+from cloak.detect.names import Gazetteer, NameDict, merge_spans
+from cloak.detect.normalize import map_span, normalize
+from cloak.detect.payloads import ENCODINGS
 from cloak.detect.patterns import find_hard
 from cloak.detect.validators import ascii_digits
+from cloak.rewrite.filenames import _clean_component
 
 PLACEHOLDER = {"PHONE": "[PHONE]", "AADHAAR": "[AADHAAR]", "ABHA": "[ABHA]", "PAN": "[PAN]", "EMAIL": "[EMAIL]",
                "INSURANCE": "[ID]", "ID": "[ID]", "NAME": "[NAME]", "RELATIVE": "[RELATIVE]"}
@@ -40,6 +44,7 @@ class Scrubber:
         self.names = NameDict()
         self.ids = IdSet()
         self.identifiers = 0
+        self.stats = Counter()
 
     # ---- registration of known values -------------------------------------------------
     def learn(self, role: str, value) -> None:
@@ -49,7 +54,8 @@ class Scrubber:
         if not v:
             return
         if role in ("patient_name", "person_name", "relative_name"):
-            self.names.add(self._strip_relation(v))
+            if not self.policy.get("ablate_names"):  # dev-only switch: measure detection without the dictionary
+                self.names.add(self._strip_relation(v))
         elif role in ("mrn", "insurance", "aadhaar", "abha", "pan"):
             self.ids.add(v)
         elif role == "phone":
@@ -68,22 +74,34 @@ class Scrubber:
         if role in ROLE_PLACEHOLDER and role not in ("village", "house", "locality", "landmark"):
             self.learn(role, value)
             self.identifiers += 1
+            self.stats[ROLE_PLACEHOLDER[role]] += 1
             return ROLE_PLACEHOLDER[role], 1
         if role in ("village", "house", "locality", "landmark"):
             self.identifiers += 1
+            self.stats[ROLE_PLACEHOLDER[role]] += 1
             return ROLE_PLACEHOLDER[role], 1
         if role == "address":
             out, n = rewrite_address(value, self.policy.get("pin_mode", "prefix3"))
             self.identifiers += n
+            self.stats["[ADDRESS]"] += n
             return out, n
         if role == "pin":
             d = re.sub(r"\D", "", ascii_digits(value))
             self.identifiers += 1
+            self.stats["[PIN]"] += 1
             if len(d) == 6 and self.policy.get("pin_mode", "prefix3") == "prefix3":
                 return d[:3] + "***", 1
             return "[PIN]", 1
+        if role == "path":
+            parts = re.split(r"([\\/])", value)
+            out = "".join(p if i % 2 else _clean_component(p, self.names, self.ids) for i, p in enumerate(parts))
+            n = int(out != value)
+            self.identifiers += n
+            self.stats["[PATH]"] += n
+            return out, n
         if role == "dob":
             self.identifiers += 1
+            self.stats["[DOB]"] += 1
             return dob_year(value), 1
         return self.scrub_text(value, doc_labels=("\n" in value))
 
@@ -97,31 +115,66 @@ class Scrubber:
         return self._scrub_plain(text)
 
     def _scrub_plain(self, text: str):
-        guards = guard_spans(text)
-        hard = find_hard(text)
-        spans = [(s.start, s.end, PLACEHOLDER[s.kind]) for s in hard]
+        text, n_enc = self._scrub_encoded(text)
+        if not text.strip():
+            return text, n_enc
+        shadow, offs = normalize(text)
+        guards = guard_spans(shadow)
+        hard = find_hard(shadow)
+        fixed = [(s.start, s.end, PLACEHOLDER[s.kind]) for s in hard]
         phone_spans = [(s.start, s.end) for s in hard if s.kind == "PHONE"]
-        for s, e in self.ids.find(text):
-            spans.append((s, e, "[ID]"))
-        for s, e in cue_name_spans(text, phone_spans):
-            if not guarded(guards, s, e):
+        for s, e in self.ids.find(shadow):
+            fixed.append((s, e, "[ID]"))
+        names = []
+        for s, e in cue_name_spans(shadow, phone_spans, self.names):
+            if not overlaps_guard([g for g in guards if g[2] in ("doctor", "history", "ward", "hospital")], s, e):
+                names.append((s, e))
+        names += self.names.find(shadow, guards)
+        names += Gazetteer.runs(shadow, guards)
+        names = [(s, e) for s, e in merge_spans(names, shadow)]
+        spans = list(fixed)
+        for s, e in names:
+            if not any(s < b and a < e for a, b, _ in fixed):
                 spans.append((s, e, "[NAME]"))
-        for s, e in self.names.find(text, guards):
-            spans.append((s, e, "[NAME]"))
         spans = self._resolve(spans)
-        for s, e, ph in reversed(spans):
-            text = text[:s] + ph + text[e:]
-        self.identifiers += len(spans)
-        return text, len(spans)
+        mapped = []
+        for s, e, ph in spans:
+            a, b = map_span(offs, s, e, len(text))
+            mapped.append((a, b, ph))
+        for a, b, ph in reversed(sorted(mapped)):
+            text = text[:a] + ph + text[b:]
+        for _a, _b, ph in mapped:
+            self.stats[ph] += 1
+        self.identifiers += len(mapped)
+        return text, len(mapped) + n_enc
+
+    def _scrub_encoded(self, text: str):
+        """Percent-encoded, \\uXXXX-escaped and HTML-entity text: decode, scrub, re-encode only if changed."""
+        total = 0
+        for decode, encode in ENCODINGS:
+            if not decode.detect(text):
+                continue
+            plain = decode.run(text)
+            new, n = self._scrub_plain_no_enc(plain)
+            if n:
+                text = encode(new)
+                total += n
+        return text, total
+
+    def _scrub_plain_no_enc(self, text: str):
+        saved = self._scrub_encoded
+        self._scrub_encoded = lambda t: (t, 0)  # prevent recursion into the same layers
+        try:
+            return self._scrub_plain(text)
+        finally:
+            self._scrub_encoded = saved
 
     @staticmethod
     def _resolve(spans):
-        """Drop overlaps, earlier-listed (higher priority) spans win; merge adjacent identical placeholders."""
+        """Drop overlaps (earlier-listed spans win)."""
         kept = []
         for s, e, ph in spans:
-            if e <= s:
-                continue
-            if any(s < b and a < e for a, b, _ in kept):
+            if e <= s or any(s < b and a < e for a, b, _ in kept):
                 continue
             kept.append((s, e, ph))
         kept.sort()

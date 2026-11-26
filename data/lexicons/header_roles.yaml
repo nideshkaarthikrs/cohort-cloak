@@ -394,6 +394,16 @@ clinical:
   - specimen
   - allergies
   - allergy
+path:
+  - source path
+  - file path
+  - export path
+  - path
+  - filename
+  - file name
+  - source file
+  - folder
+  - directory
 free_text:
   - notes
   - note

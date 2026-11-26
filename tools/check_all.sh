@@ -9,7 +9,7 @@ TRUTH=$KIT/dev/truth/truth.json
 SECRET=practice
 FAIL=0
 step() { echo; echo "=== $1"; }
-rm -rf out_a out_b out_c .tmp_scan
+rm -rf out_a out_b out_c out_d .tmp_scan
 mkdir -p .tmp_scan/tmp .tmp_scan/home
 
 step "pipeline (secret=practice), timing + peak RSS"
@@ -28,9 +28,16 @@ python3 $KIT/check_dev.py --output out_a
 step "eval_dev"
 $PY tools/eval_dev.py --output out_a --truth $TRUTH
 
+step "clean-document token retention"
+$PY tools/clean_check.py --output out_a --truth $TRUTH || FAIL=1
+
 step "canary scan (output, logs, stdout/stderr, TMPDIR, HOME)"
 $PY tools/canary_scan.py --output out_a --truth $TRUTH --extra .tmp_scan/stdout.txt .tmp_scan/stderr.txt .tmp_scan/tmp .tmp_scan/home || FAIL=1
 echo "leftover files in TMPDIR/HOME: $(find .tmp_scan/tmp .tmp_scan/home -type f | wc -l | tr -d ' ')"
+
+step "generalisation proxy: run without learning names from structured fields"
+RAKSHA_SECRET=$SECRET $PY main.py --input $KIT/dev/input --output out_d --ablate-names > /dev/null
+python3 $KIT/check_dev.py --output out_d | sed -n "/PERSONAL DATA/p;/by language/p;/by hiding/p;/MEDICAL/p"
 
 step "determinism (same secret, second run)"
 RAKSHA_SECRET=$SECRET $PY main.py --input $KIT/dev/input --output out_b > /dev/null

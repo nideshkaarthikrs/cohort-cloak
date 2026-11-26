@@ -27,6 +27,8 @@ def shape_regex(value: str):
     src = "".join(parts)
     # collapse separator-optional neighbours into one
     src = re.sub(r"(?:\[\\-/_ \.\]\?){2,}", r"[\\-/_ .]?", src)
+    if len(re.sub(r"\D", "", v)) < 5:
+        return None  # too few digits: the shape would match ordinary words followed by a year
     has_letter = bool(re.search(r"[A-Za-z]", v))
     if not has_letter and len(re.sub(r"\D", "", v)) < 9:
         return None  # bare short numbers (PINs, counts) must not become a shape

@@ -1,6 +1,8 @@
 """Filename sanitising: drop ID/phone-shaped tokens and known names from every path component."""
 import re
 
+from cloak.detect.lexicon import medical_words, words
+
 _SEP = re.compile(r"([_\-. ()\[\]]+)")
 _ALPHA_SHORT = re.compile(r"^[A-Za-z]{1,5}$")
 
@@ -15,6 +17,13 @@ def _idish(tok: str) -> bool:
     return tok.isdigit() or bool(_ALPHA_SHORT.match(tok) and tok.isupper())
 
 
+_FILE_WORDS = words("filename_words.txt")
+
+
+def _name_like(tok: str) -> bool:
+    return bool(re.fullmatch(r"[A-Z][a-z]{2,}", tok)) and tok.casefold() not in _FILE_WORDS and tok.casefold() not in medical_words()
+
+
 def _clean_component(name: str, names=None, ids=None) -> str:
     stem, dot, ext = name.rpartition(".")
     if not dot or not stem or len(ext) > 8 or _SEP.search(ext):
@@ -24,6 +33,25 @@ def _clean_component(name: str, names=None, ids=None) -> str:
     is_name = [bool(names is not None and len(t) >= 2 and names.has_token(t)) for t in toks]
     flags = [(not is_name[i]) and (_flagged(t) or bool(ids is not None and ids.has_token(t))) for i, t in enumerate(toks)]
     idish = [(not is_name[i]) and (flags[i] or _idish(t)) for i, t in enumerate(toks)]
+    # fail closed: capitalised unknown words hugging an ID/phone run are probably the patient's name
+    i = 0
+    while i < len(toks):
+        if not idish[i]:
+            i += 1
+            continue
+        j = i
+        while j + 1 < len(toks) and idish[j + 1]:
+            j += 1
+        if any(flags[i:j + 1]):
+            k = i - 1
+            while k >= 0 and i - k <= 3 and _name_like(toks[k]) and not is_name[k]:
+                is_name[k], idish[k] = True, False
+                k -= 1
+            k = j + 1
+            while k < len(toks) and k - j <= 2 and _name_like(toks[k]) and not is_name[k]:
+                is_name[k], idish[k] = True, False
+                k += 1
+        i = j + 1
     out = []
     i = 0
     while i < len(toks):

@@ -74,6 +74,7 @@ def main(argv=None) -> int:
     ap = argparse.ArgumentParser(description="Cohort Cloak privacy firewall")
     ap.add_argument("--input", required=True)
     ap.add_argument("--output", required=True)
+    ap.add_argument("--ablate-names", action="store_true", help="dev only: do not learn names from structured fields")
     a = ap.parse_args(argv)
     t0 = time.monotonic()
     secret = os.environ.get("RAKSHA_SECRET", "")
@@ -89,6 +90,7 @@ def main(argv=None) -> int:
         return 2
     keys = Keys(secret.encode("utf-8"))  # noqa: F841 - used from Phase 4 on
     policy = load_policy(ROOT / "config" / "policy.yaml")
+    policy["ablate_names"] = bool(a.ablate_names)
 
     for stale in ("sanitized", "logs"):
         shutil.rmtree(out / stale, ignore_errors=True)
@@ -122,6 +124,7 @@ def main(argv=None) -> int:
             except Exception:  # noqa: BLE001 - surfaced again (and quarantined) in pass 2
                 pass
     scrubber.identifiers = 0
+    scrubber.stats.clear()
 
     # pass 2: rewrite with the complete dictionaries
     results = []  # (rel, sha, output_bytes|None, locs, reason)
@@ -155,7 +158,7 @@ def main(argv=None) -> int:
         records.extend({"file": f"sanitized/{out_rel}", "loc": loc, "patient": None} for loc in locs)
 
     write_records(out / "records.jsonl", records)
-    report = build_report(files, records, identifiers, time.monotonic() - t0)
+    report = build_report(files, records, identifiers, time.monotonic() - t0, scrubber.stats)
     write_report(out / "report.json", report)
     log.event("run_done", files=len(files), records=len(records))
     log.close()
