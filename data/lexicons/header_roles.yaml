@@ -1,6 +1,13 @@
 # Multilingual header / label / key synonyms per role. Hand-written and generic (not copied from any dataset).
 # Matching is on normalised tokens: lowercase, camelCase split, punctuation removed.
 patient_name:
+  - beneficiary
+  - applicant
+  - insured
+  - customer
+  - client
+  - member
+  - मरीज
   - patient name
   - patient
   - name
@@ -138,6 +145,8 @@ mrn:
   - hospital id
   - patient reference
   - hosp no
+  - card
+  - card number
   - hosp number
   - hospital no
   - hospital number
@@ -238,6 +247,7 @@ state:
   - country
   - राज्य
 dob:
+  - born
   - dob
   - date of birth
   - birth date
@@ -332,6 +342,9 @@ date_event:
   - तारीख
   - दिनांक
 id_txn:
+  - bill ref
+  - receipt no
+  - voucher no
   - bill no
   - bill id
   - sample id
@@ -347,6 +360,13 @@ id_txn:
   - accession no
   - encounter id
 clinical:
+  - medicine
+  - medicines
+  - qty
+  - quantity
+  - रोग
+  - दवा
+  - impression
   - complaints
   - complaint
   - chief complaint

@@ -19,15 +19,18 @@ _CUE_WORDS = (r"called\s+by|raised\s+by|witnessed\s+by|informed\s+by|reported\s+
               r"contact\s+person|brought\s+by|next\s+of\s+kin|patient\s+name|pt\s+name|name\s+of\s+patient|report\s+of|"
               r"collected\s+from|sample\s+received\s+from|received\s+from|spoke\s+to|spoke\s+with|meeting\s+with|handed\s+over\s+to|"
               r"relative|brother|sister|son|daughter|wife|husband|mother|father|friend|neighbou?r|nephew|niece|uncle|aunt|"
-              r"cousin|spouse|accompanied\s+by|escorted\s+by|signed\s+by|consent\s+(?:given\s+)?by")
-_CUE = re.compile(r"(?i:\b(?:" + _CUE_WORDS + r"))\s*[:,\-(]*\s*(?i:(?:(?:is|was|by|named|name|mr|mrs|ms|shri|smt)\b\.?\s*){0,2})(" + _NAMERUN + ")")
+              r"cousin|spouse|accompanied\s+by|escorted\s+by|signed\s+by|consent\s+(?:given\s+)?by|"
+              r"bete|beta|beti|patni|pati|pita|mata|biwi|dost|padosi|"
+              r"appt\s+for|appointment\s+for|booked\s+for|reports?\s+for|bill\s+for|prescription\s+for|certificate\s+for|"
+              r"referral\s+for|admission\s+of|discharge\s+of|follow[- ]?up\s+(?:of|for)|ward\s+round\s+for")
+_CUE = re.compile(r"(?i:\b(?:" + _CUE_WORDS + r"))(?=[\s:,\-(])\s*[:,\-(]*\s*(?i:(?:(?:is|was|by|named|name|mr|mrs|ms|shri|smt)\b\.?\s*){0,2})(" + _NAMERUN + ")")
 _BEFORE_REL = re.compile(r"(" + _NAMERUN + r")\s*,?\s*(?:S/o|D/o|W/o|S/O|D/O|W/O)\b")
 _BEFORE_DASH_HIST = re.compile(r"(" + _NAMERUN + r")\s+-\s+(?:K/C/O|H/O|C/O)\b")
 _AFTER_TIME_DASH = re.compile(r"\b\d{1,2}:\d{2}\s+-\s+(" + _NAMERUN + r")(?=\s+-|\s*$)", re.M)
 _BEFORE_PAREN = re.compile(r"(" + _NAMERUN + r")\s*\((?i:attendant|visitor|relative|guardian|patient|caller)")
 _PATIENT_CUE = re.compile(r"(?<![A-Za-z])(?:Patient|Pt\.?)\s+(" + _NAMERUN + ")")
 _POSS_REL = re.compile(r"\b([A-Z][a-z]{2,})'s\s+(?i:mother|father|wife|husband|son|daughter|attendant|relative|brother|sister|family|bhai|beti|beta)\b")
-_PARTICLE_STRONG = re.compile(r"(?<![\w/])(" + _LATIN_TOK + r")\s+(?:ko|ne)\b")
+_PARTICLE_STRONG = re.compile(r"(?<![\w/])((?:" + _LATIN_TOK + r"\s+){0,2}" + _LATIN_TOK + r")\s+(?:ko|ne)\b")
 _PARTICLE = re.compile(r"\b(" + _LATIN_TOK + r")\s+(?:ka|ki|ke|ne|ko|se)\b")
 _POSSESSIVE_KA = re.compile(r"\b([A-Z][a-z]{2,})\s+(?:ka|ki|ke|ne|ko)\s+(?:BP|bp|pulse|temp|sugar|RBS|bukhar|dard|tabiyat|condition|report)\b")
 _WHATSAPP = re.compile(r"(?m)^\s*\[[^\]\n]{4,32}\]\s*([^:\n\[\]]{2,40}?)\s*:")
@@ -81,13 +84,7 @@ def cue_name_spans_typed(text: str, phone_spans=(), dictionary=None) -> list:
     for m in _HONORIFIC_POST.finditer(text):
         sp = _trim(m.start(1), m.end(1), text)
         if sp:
-            # keep only trailing tokens: a leading capitalised word may just start the sentence
-            seg = text[sp[0]:sp[1]]
-            toks = list(re.finditer(r"\S+", seg))
-            keep = [t for t in toks if Gazetteer.known(t.group(0)) or (dictionary is not None and dictionary.matches_word(t.group(0)))]
-            last = toks[-1]
-            lo = min([t.start() for t in keep] + [last.start()])
-            out.append((sp[0] + lo, sp[1], "subject"))
+            out.append((sp[0], sp[1], "subject"))  # leading non-name words (Dear, Today...) were trimmed already
     for m in list(_PARTICLE.finditer(text)):
         w = m.group(1)
         if Gazetteer.known(w) or (dictionary is not None and dictionary.matches_word(w)):

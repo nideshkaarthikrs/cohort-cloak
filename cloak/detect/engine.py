@@ -26,7 +26,7 @@ ROLE_PLACEHOLDER = {"patient_name": "[NAME]", "person_name": "[NAME]", "relative
 ROLE_KIND = {"phone": "PHONE", "email": "EMAIL", "aadhaar": "AADHAAR", "abha": "ABHA", "pan": "PAN", "mrn": "ID",
              "insurance": "ID"}
 
-_LABEL = re.compile(r"(?:^|(?<=\s{2})|(?<=[|;]\s)|(?<=\|))\s*([A-Za-z\u0900-\u097f][A-Za-z\u0900-\u097f ./()'&\-#]{0,38}?)\s*:\s*(?=\S)", re.M)
+_LABEL = re.compile(r"(?:^|(?<=\s{2})|(?<=[|;]\s)|(?<=\|))\s*([A-Za-z\u0900-\u097f][A-Za-z\u0900-\u097f ./()'&\-#]{0,38}?)\s*[:=]\s*(?=\S)", re.M)
 _DOB_RX = re.compile(r"(?<!\d)(\d{1,4})[/\-. ](\d{1,2})[/\-. ](\d{1,4})(?!\d)")
 
 

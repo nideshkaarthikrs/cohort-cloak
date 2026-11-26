@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>Cohort Cloak: Project Brief</title>
+<style>
+@page { size: A4; margin: 11mm 12mm; }
+* { box-sizing: border-box; }
+body { font-family: "Helvetica Neue", Arial, sans-serif; font-size: 10pt; line-height: 1.32; color: #14202b; margin: 0; }
+h1 { font-size: 16pt; margin: 0 0 2pt; color: #0b3c5d; }
+.sub { font-size: 10pt; color: #44525f; margin-bottom: 5pt; }
+h2 { font-size: 11pt; margin: 7pt 0 2pt; color: #0b3c5d; border-bottom: 1px solid #c9d6df; padding-bottom: 1pt; }
+p { margin: 0 0 3pt; } ul { margin: 0 0 3pt 13pt; padding: 0; } li { margin: 0 0 1.5pt; }
+table { border-collapse: collapse; width: 100%; font-size: 10pt; margin: 2pt 0 3pt; }
+th, td { border: 1px solid #c9d6df; padding: 1.5pt 4pt; text-align: left; vertical-align: top; }
+th { background: #eaf1f6; }
+svg { width: 100%; height: auto; display: block; margin: 2pt 0 3pt; }
+.two { display: flex; gap: 10pt; } .two > div { flex: 1; }
+.page2 { break-before: page; }
+code { font-family: Menlo, monospace; font-size: 9.5pt; }
+</style></head><body>
+
+<h1>Cohort Cloak: a privacy firewall that links people without exposing them</h1>
+<div class="sub"><b>Track 3 · Secret Wards</b> · Team: nideshkaarthikrs · Repo: github.com/nideshkaarthikrs/cohort-cloak · Models used: <b>none</b> (rules, gazetteers, classical string similarity)</div>
+
+<h2>1. In one paragraph</h2>
+<p>Cohort Cloak sanitises a synthetic multi-hospital dump (CSV/TSV, nested JSON, FHIR, English/Hindi/Hinglish text) offline on 2 CPUs.
+It redacts identifiers in every channel (content, file names, headers, keys, base64, encodings), keeps clinical values exact,
+gives each patient one keyed pseudonym across all files, and then <i>measures</i> its own re-identification risk with a re-implemented
+registry attacker and picks its privacy settings from that measurement. Its single best idea: a two-pass design, learning every name and ID
+from structured fields first and then using them everywhere, with cluster-level privacy decisions applied after linkage.</p>
+
+<h2>2. Architecture</h2>
+<svg viewBox="0 0 520 44" xmlns="http://www.w3.org/2000/svg" font-family="Helvetica, Arial, sans-serif" font-size="11">
+ <defs><marker id="a" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 z" fill="#0b3c5d"/></marker></defs>
+ <g fill="#eaf1f6" stroke="#0b3c5d">
+  <rect x="1" y="6" width="68" height="30" rx="4"/><rect x="91" y="6" width="68" height="30" rx="4"/>
+  <rect x="181" y="6" width="88" height="30" rx="4"/><rect x="291" y="6" width="58" height="30" rx="4"/>
+  <rect x="371" y="6" width="68" height="30" rx="4"/><rect x="461" y="6" width="58" height="30" rx="4"/></g>
+ <g fill="#14202b" text-anchor="middle" dominant-baseline="middle">
+  <text x="35" y="21">input/</text><text x="125" y="21">1 Ingest</text><text x="225" y="21">2 Detect</text>
+  <text x="320" y="21">3 Link</text><text x="405" y="21">4 Privacy</text><text x="490" y="21">Outputs</text></g>
+ <g stroke="#0b3c5d" stroke-width="1.5" marker-end="url(#a)"><line x1="69" y1="21" x2="89" y2="21"/><line x1="159" y1="21" x2="179" y2="21"/><line x1="269" y1="21" x2="289" y2="21"/><line x1="349" y1="21" x2="369" y2="21"/><line x1="439" y1="21" x2="459" y2="21"/></g>
+</svg>
+<p><b>Flow.</b> <i>input/</i> (any format, any encoding) &rarr; <i>Ingest</i> (sniff, decode, quarantine) &rarr; <i>Detect</i> (pass 1 learns names, IDs, ID shapes and date order from every channel; pass 2 renders with placeholders that carry payloads) &rarr; <i>Link</i> (blocking, Fellegi-Sunter scores, constrained clusters, HMAC pseudonyms) &rarr; <i>Privacy plan</i> (per-patient date shift, age band, rare-diagnosis and k-anonymity decisions, resolved per patient) &rarr; <i>Outputs</i>: <code>sanitized/</code>, <code>report.json</code>, <code>records.jsonl</code>, logs with enums only. A linking failure degrades to "unlinked but complete"; a file failure to quarantine with a snake_case reason.</p>
+
+<h2>3. How it works</h2>
+<ul>
+<li><b>Ingestion:</b> sniff by content, not extension; utf-8/BOM/UTF-16/cp1252 with a mojibake check; JSON behind a <code>.csv</code> name is parsed as JSON; empty, binary, XML/PDF/JPG, truncated, 1,500-deep and bad-encoding files are quarantined (never copied) with a reason code.</li>
+<li><b>Detection:</b> clinical <i>guards</i> first (doctors, doses, <code>1-0-1</code>, vitals, ranges, ICD, wards, <code>C/O fever</code> vs <code>C/O Ramesh</code>, <code>K/C/O</code>, eponyms); hard identifiers (phones incl. Devanagari digits, Aadhaar, ABHA, PAN, shape-induced IDs) override guards. Column/key roles come from multilingual header synonyms plus a value profile (values beat headers). Names: run-time dictionary matched across spellings and scripts by phonetic skeletons (Rina/Reena, Mohd/Mohammad/मोहम्मद), cues (S/o, W/o, ji/sahab, <code>ko/ne</code>, "called by", WhatsApp senders, name-near-phone), gazetteers, and a fail-closed rule for two unknown capitalised words. Work happens on a normalised shadow (homoglyphs, zero-width, diacritics) and decodes base64, %-encoding, <code>\u</code> escapes and entities.</li>
+<li><b>Linkage and pseudonyms:</b> per-record evidence, blocking on IDs, phones, DOB and name skeletons, hand-set Fellegi-Sunter weights, hard cannot-links, demotion of household/attendant IDs, constrained clustering with an ambiguity margin, a unique-match rule for fragments, <code>PSN-</code> + HMAC-SHA256 keyed by <code>RAKSHA_SECRET</code>.</li>
+<li><b>Privacy layer:</b> per-patient date shift (stays and intervals exact, any format and Hindi months), cluster-consistent 5-year age bands, rare-ICD generalisation to category/chapter, k-anonymity escalation, DOB and village redacted, PIN to 3 digits.</li>
+<li><b>Security:</b> keys derived in memory by HKDF; AES-GCM spill; no PII or secret in stdout, stderr, logs, report, temp files; the input is read-only; exception text is never recorded, only class names.</li>
+</ul>
+
+<h2>4. USP</h2>
+<ul>
+<li><b>Learn-then-redact across channels:</b> every structured name/ID protects file names, keys, headers, prose and base64, so unseen names in structured fields cannot leak elsewhere.</li>
+<li><b>Measured privacy:</b> <code>attack_sim.py</code> re-implements the registry attacks; <code>sweep.py</code> chose the settings by a privacy-utility score, not by guess.</li>
+<li><b>Honest generalisation tests:</b> generated stress sets (new names, headers, formats, hidden channels, canaries, new layouts) with their own truth.</li>
+</ul>
+
+<div class="page2"></div>
+<h2>5. Privacy-utility trade-off (measured on the practice data, secret = practice)</h2>
+<table>
+<tr><th style="width:55%">Measure</th><th>Value</th></tr>
+<tr><td>personal data leaked: overall / Hindi / Hinglish</td><td>0% / 0% / 0% (0 of 3230 pieces; canaries 0 of 4)</td></tr>
+<tr><td>medical values kept</td><td>94.7% (4,599 of 4,855); doctors, doses, vitals, labs, complaints, history, wards 100%; diagnoses 72% by design</td></tr>
+<tr><td>linking precision / recall / F0.5</td><td>1.000 / 0.996 / 0.999; wrong merges 0; both homonym pairs separated; language and fragment traps linked</td></tr>
+<tr><td>re-identification risk (own attack simulation, ratio to raw input)</td><td>A3 record linkage 4.4% · A4 profile re-identification 2.1% (raw 100%) · A5 targeted 48.3% (raw 92%)</td></tr>
+<tr><td>temporal and truthfulness</td><td>date intervals exact 99.2%; every age band contains the true age (350 of 350)</td></tr>
+<tr><td>run time / peak memory</td><td>about 1 s / 52 MB (limits 15 min / 4 GB); 10x data scales with exponent 0.89; output byte-identical across runs</td></tr>
+<tr><td><b>on data we did not tune on</b></td><td>3 generated stress seeds: 0% critical IDs, 0% names, 0 of 10 canaries leaked, 97-99% of probes kept. <b>New layouts (first run, before any fix): IDs 0%, but 42.7% of names leaked (62% any token)</b>; after fixes 0%, but that figure is tuned, not held out.</td></tr>
+</table>
+<p><b>Why these settings.</b> The sweep (tools/sweep_results.md) scores each choice by <code>25(1-risk)·min(1,U/0.4) + 20U</code>. Redacting DOB cut A4 from 25% to 2% at a cost of about 0.01 in utility; k-anonymity cut A4 from 54% to 2%; redacting the village instead of keeping the district cut A4 from 17% to 2%. Rare diagnoses are the open trade-off: a fixed threshold of 8 lowers the targeted attack to 17% of raw but keeps only 89% of medical values, while our cohort-scaled threshold (floor 3, cap 8) keeps 94.7% and leaves A5 at 48%. We chose to protect clinical utility and flag the gap; larger cohorts push the threshold up automatically. Date intervals and stay lengths are never traded away.</p>
+
+<h2>6. Security design</h2>
+<p>Assume the server will be breached: temporary data is encrypted (AES-GCM, key = HKDF of the release secret, never stored) and deleted on exit, errors and SIGTERM; pseudonyms are keyed HMACs, so unkeyed hash dictionaries (the arena's A6) fail and a new secret yields new pseudonyms and new date shifts (A7). Logs carry only enums and integers; failures write a class name, never content. Files we cannot process are quarantined, never copied, and always listed in <code>report.json</code> by SHA-256.</p>
+
+<h2>7. Known limitations (honest list)</h2>
+<ul>
+<li><b>Targeted attack:</b> A5 stays at 48% of raw on 48 patients; length of stay cannot be hidden by design, and rare conditions are only generalised below the scaled threshold.</li>
+<li><b>New layouts:</b> unseen document layouts are the main risk; our stress sets and attacker are our own work, not the organisers' evaluator, and the unseen-layout result above shows how fast it can fall (43% name leak) before tuning.</li>
+<li><b>Gaps:</b> dates inside encoded payloads are not shifted; procedures and package codes are not generalised; OPD file names keep the month; memory grows with the number of events (about 430 MB for 12 MB of repeated dev data).</li>
+<li><b>Tuning:</b> linkage weights, thresholds and the operating point were tuned on the practice data; generalisation score is low by design (DOB, village, PIN prefix are redacted or coarse).</li>
+<li><b>Next steps:</b> a held-out layout set from a second author, spilling the event table, procedure/package generalisation, and a learned scoring layer for linkage if allowed.</li>
+</ul>
+</body></html>

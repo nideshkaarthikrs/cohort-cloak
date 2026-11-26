@@ -80,6 +80,11 @@ for SEED in 7 99; do
   rm -rf $D
 done
 
+step "unseen-layout set (tools/make_stress2.py, informational: first run before any fix was names 42.7% leaked)"
+rm -rf .tmp_scan/s2; $PY tools/make_stress2.py --out .tmp_scan/s2/in --truth .tmp_scan/s2/truth.json > /dev/null
+RAKSHA_SECRET=$SECRET $PY main.py --input .tmp_scan/s2/in --output .tmp_scan/s2/out > /dev/null
+$PY tools/stress_eval.py --input .tmp_scan/s2/in --output .tmp_scan/s2/out --truth .tmp_scan/s2/truth.json | grep -v "LEAK\|LOST\|^STRESS\|quarantine"
+
 step "scaling (stress x1, x4, x10): exponent must be <= 1.15"
 $PY tools/scale_test.py --scales 1,4,10 | tee .tmp_scan/scale.txt | tail -2
 python3 - <<'PYEOF' || FAIL=1

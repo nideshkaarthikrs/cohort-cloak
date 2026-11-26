@@ -3,6 +3,7 @@ import re
 
 from cloak.detect.columns import PII_ROLES, header_role, infer_roles
 from cloak.detect.guards import guard_spans, guarded
+from cloak.detect.names import is_non_name
 from cloak.privacy.suppress import ICD_RX
 from cloak.detect.payloads import ATTACHMENT_PLACEHOLDER, decode_b64_text, encode_b64_text, looks_b64
 from cloak.rewrite.keys_headers import safe_header, safe_key
@@ -45,15 +46,45 @@ def scrub_unknown(scrubber, value: str):
     out, n = scrubber.scrub_text(value, doc_labels=("\n" in value))
     probe = re.sub(r"\[[A-Z]+\]", " ", out)
     g = guard_spans(probe)
-    if _DEVA_NAME.match(probe) or any(not guarded(g, m.start(), m.end()) for m in _NAMEY_RUN.finditer(probe)):
+    nameish = [m for m in _NAMEY_RUN.finditer(probe)
+               if not guarded(g, m.start(), m.end()) and not all(is_non_name(t) for t in m.group(0).split())]
+    if _DEVA_NAME.match(probe) or nameish:
         scrubber.identifiers += 1
         return REDACTED, n + 1
     return out, n
 
 
 # ------------------------------------------------------------------------------------ CSV
-def transform_csv(header, body, scrubber):
-    """Return (new_header, new_body, count)."""
+def _header_row(header, body):
+    """Index into `body` of the real header when title/preamble rows come first, else -1."""
+    widths = [len(r) for r in body if any(c.strip() for c in r)]
+    if not widths or len(header) >= max(set(widths), key=widths.count):
+        return -1
+    width = max(set(widths), key=widths.count)
+    for i, row in enumerate(body[:6]):
+        if len(row) == width and sum(1 for c in row if header_role(c)[0] is not None) >= 2:
+            return i
+    return -1
+
+
+def transform_csv(header, body, scrubber, offset=0):
+    """Return (new_header, new_body, count). `offset`: index of body[0] among the file's data rows (for records)."""
+    hidx = _header_row(header, body) if offset == 0 else -1
+    if hidx >= 0:
+        pre, real, rest = body[:hidx], body[hidx], body[hidx + 1:]
+        sub_header, sub_body, n = transform_csv(real, rest, scrubber, offset=hidx + 1)
+        new_header, _hb, n0 = transform_csv(header, [], scrubber)
+        pre_out = []
+        for ri, row in enumerate(pre):
+            scrubber.rec = f"row:{ri}"
+            out = []
+            for cell in row:
+                new, k = scrub_unknown(scrubber, cell) if cell.strip() else (cell, 0)
+                n += k
+                out.append(new)
+            pre_out.append(out)
+        scrubber.rec = "doc"
+        return new_header, pre_out + [sub_header] + sub_body, n + n0
     roles = infer_roles(header, body)
     count = 0
     if scrubber.table is None:  # d/m vs m/d hints from headers such as "DOB (MM/DD/YYYY)"
@@ -74,7 +105,7 @@ def transform_csv(header, body, scrubber):
             new_header.append("[COLUMN]" if c == 1 else f"[COLUMN]-{c}")
     new_body = []
     for ri, row in enumerate(body):
-        scrubber.rec = f"row:{ri}"
+        scrubber.rec = f"row:{ri + offset}"
         out = []
         for j, cell in enumerate(row):
             role = roles[j] if j < len(roles) else None
@@ -120,7 +151,7 @@ def _leaf_role(key, ctx: _Ctx):
             return ctx.role
         if nk in ("valuestring", "string"):
             return None
-        if nk in _GENERIC:
+        if nk in ("text", "display", "value", "code", "line", "local"):
             return "clinical"
         return None
     return own

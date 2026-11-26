@@ -20,13 +20,21 @@ NOT_NAME_CAPS = frozenset({
     "Doctor", "Hospital", "Medicine", "Surgery", "Dr", "Contact", "Called", "Informed", "Raised", "Reported", "Guardian",
     "The", "Fever", "Cough", "Gate", "Sample", "Report", "Received", "Mr", "Mrs", "Ms", "Shri", "Smt", "Visit", "Treated",
     "Continue", "Discharge", "Discharged", "Admitted", "Presenting", "Course", "Medications", "Essential", "Review",
-    "Low", "Salt", "Diet", "Patient", "Nursing", "Notes", "Note", "Today", "Next", "Morning", "Evening", "Night"})
+    "Low", "Salt", "Diet", "Patient", "Nursing", "Notes", "Note", "Today", "Next", "Morning", "Evening", "Night",
+    "January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November",
+    "December", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday", "Dear", "Regards",
+    "Sahab", "Sir", "Madam", "Kripya", "Hello", "Thanks", "Thank", "Please"})
+
+
+_CLINICAL_SUFFIX = ("itis", "osis", "emia", "aemia", "pathy", "algia", "ectomy", "otomy", "plasty", "scopy", "uria", "pnea",
+                    "pnoea", "cardia", "ology", "ologist", "ectasis", "penia", "philia", "rrhea", "rrhoea", "trophy",
+                    "spasm", "edema", "oedema", "lithiasis", "tension", "plegia", "paresis")
 
 
 def is_non_name(tok: str) -> bool:
     t = tok.strip(".,'").casefold()
     return (not t or tok.strip(".,") in NOT_NAME_CAPS or t in medical_words() or t in words("hinglish_stopwords.txt")
-            or t in _STOP or t in _TITLES)
+            or t in _STOP or t in _TITLES or (len(t) >= 7 and t.endswith(_CLINICAL_SUFFIX)))
 
 
 def norm_token(t: str) -> str:
@@ -174,4 +182,6 @@ class Gazetteer:
                 out.append((toks[i][0], toks[i + 1][1]))
             elif b in ("surname", "both") and free[i + 1] and plain(i):
                 out.append((toks[i][0], toks[i + 1][1]))
+            elif a is None and b is None and plain(i) and plain(i + 1):
+                out.append((toks[i][0], toks[i + 1][1]))  # fail closed: two unknown capitalised words side by side
         return merge_spans(out, text)

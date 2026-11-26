@@ -1,0 +1,19 @@
+# Common clinical / ICD-description vocabulary (hand-written). Lowercase. Keeps Title-Case diagnoses from being read as names.
+infection infections urinary tract respiratory cardiac renal hepatic gastric intestinal pulmonary vascular cerebral neurological
+digestive circulatory skeletal muscular nervous endocrine metabolic nutritional mental behavioural behavioral genitourinary
+unspecified without complications complication syndrome disease diseases disorder disorders condition conditions chronic acute
+primary secondary essential type types mild moderate severe benign malignant congenital acquired viral bacterial fungal parasitic
+fever cough pain chest abdominal headache shortness breath breathing weakness vomiting nausea diarrhoea diarrhea constipation
+swelling rash itching bleeding discharge failure insufficiency deficiency overload retention obstruction stenosis hypertrophy
+hypertensive diabetic asthmatic anaemic anemic septic toxic traumatic allergic autoimmune inflammatory degenerative
+site site-specific other certain unknown organism organisms agent agents upper lower left right bilateral unilateral
+pregnancy delivery postpartum antenatal neonatal infant child adult elderly senile
+procedure procedures surgery surgical operation operative therapy treatment management care monitoring observation follow-up
+examination investigation screening vaccination immunisation immunization injury fracture wound burn poisoning
+blood sugar pressure pulse rate temperature oxygen saturation level levels count counts test tests report reports result results
+normal abnormal elevated raised reduced low high positive negative
+hospital ward bed room ward-round icu opd ipd emergency casualty outpatient inpatient
+medicine medicines medication medications tablet capsule syrup injection ointment cream drops inhaler
+review advice diet rest fluids oral intravenous daily twice thrice weekly monthly
+male female patient patients
+alcohol tobacco smoking

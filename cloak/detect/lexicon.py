@@ -45,7 +45,7 @@ def words(name: str) -> frozenset:
 def medical_words() -> frozenset:
     out = set()
     for f in ("drugs.txt", "diseases.txt", "symptoms_en_hi.txt", "eponyms.txt", "lab_tests.txt", "units.txt",
-              "departments.txt"):
+              "departments.txt", "clinical_terms.txt"):
         out |= words(f)
     return frozenset(out)
 

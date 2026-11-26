@@ -87,7 +87,7 @@ def main():
         pres_total += 1
         ok = fold(pv["text"]) in per_file_text.get(pv["file"], "")
         kept += ok
-        if not ok and len(missing) < 5:
+        if not ok and len(missing) < 40:
             missing.append((pv["file"], pv["text"]))
     blob = ""
     for p in sorted(out.rglob("*")):
