@@ -57,6 +57,7 @@ def test_spilled_run_is_identical_and_leaves_no_temp_files(tmp_path):
     assert "spilled=3" in (out_a / "logs" / "run.log").read_text()
 
 
+@pytest.mark.skipif(sys.platform == "win32", reason="Windows cannot catch SIGTERM: os.kill terminates the process outright")
 def test_sigterm_removes_spill_directory(tmp_path):
     code = textwrap.dedent(f"""
         import os, signal, sys

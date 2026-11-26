@@ -3,7 +3,6 @@
 import argparse
 import math
 import os
-import resource
 import subprocess
 import sys
 import tempfile
