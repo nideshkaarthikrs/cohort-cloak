@@ -219,3 +219,14 @@ def test_ocr_digit_for_letter_typos_of_a_known_name_are_removed(tmp_path):
     for leak in ("ph1lomena", "quarrington", "g4rnet", "0yelaran", "quarr1ngton"):
         assert leak not in blob, leak
     assert "130/80" in blob and "metformin 500 mg" in blob
+
+
+def test_unknown_header_column_of_repeating_six_digit_codes_is_a_pin(tmp_path):
+    rows = ["Tag,Zq,Visits"] + [f"Pt{i},{pin},{i + 2}" for i, pin in
+                                 enumerate(["411045", "411045", "560066", "411045", "560066", "700091", "560066"])]
+    out = run(tmp_path, {"x/a.csv": "\n".join(rows) + "\n"})
+    text = out["x/a.csv"]
+    for pin in ("411045", "560066", "700091"):
+        assert pin not in text, pin
+    assert "411***" in text or "[PIN]" in text
+

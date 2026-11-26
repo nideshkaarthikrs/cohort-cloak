@@ -116,6 +116,10 @@ def infer_roles(header, rows, sample: int = 300) -> list:
                 ids = [c for c in cells if looks_like_id(c)]
                 if len(ids) / n >= 0.8 and len(set(cells)) / n >= 0.7:
                     role = "mrn"  # unknown header, values are reference numbers: fail closed
+            if role is None and n >= 5:
+                pins = [c for c in cells if re.fullmatch(r"[1-8]\d{5}", c)]
+                if len(pins) / n >= 0.9 and len(set(pins)) / len(pins) <= 0.7:
+                    role = "pin"  # unknown header, repeating 6-digit codes: postal codes repeat, amounts and references do not
             if role is None and n >= 3:
                 names = [c for c in cells if looks_like_name(c)]
                 multi = sum(1 for c in names if " " in c)
