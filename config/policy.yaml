@@ -6,8 +6,9 @@ dob_mode: redact         # shift | year | redact
 village_mode: redact     # tehsil | district | redact
 tehsil_mode: district    # keep | district
 pin_mode: prefix3        # prefix3 | redact
-rare_dx_max_patients: 8   # cap; the threshold is clamp(floor(rare_dx_fraction * patients), 2, cap)
+rare_dx_max_patients: 8   # cap; the threshold is clamp(floor(rare_dx_fraction * patients), rare_dx_floor, cap)
 rare_dx_fraction: 0.05
+rare_dx_floor: 3         # the attacker weights conditions shared by <= 3 profiles x8, so never go below it
 k_min: 5
 k_max_level: 3
 link_threshold: 10

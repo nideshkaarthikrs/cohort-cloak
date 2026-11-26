@@ -18,8 +18,8 @@ def shape_regex(value: str):
     parts = []
     for m in re.finditer(r"[A-Za-z]+|\d+|[^A-Za-z\d]+", v):
         t = m.group(0)
-        if t.isalpha():
-            parts.append(f"[A-Za-z]{{{len(t)}}}")
+        if t.isalpha():  # an ID prefix is written in one case; Title-case words (names) must not match
+            parts.append(f"(?:[A-Z]{{{len(t)}}}|[a-z]{{{len(t)}}})")
         elif t.isdigit():
             parts.append(f"\\d{{{len(t)}}}")
         else:
@@ -82,9 +82,16 @@ class IdSet:
         t = ascii_digits(text)
         spans = []
         for m in _CAND.finditer(t):
-            if self.has_token(m.group(0).strip(" .-/_")):
-                s = m.start() + len(m.group(0)) - len(m.group(0).lstrip(" .-/_"))
-                spans.append((s, m.start() + len(m.group(0).rstrip(" .-/_"))))
+            raw = m.group(0)
+            if not self.has_token(raw.strip(" .-/_")):
+                continue
+            s, e = m.start(), m.end()
+            if alnum(raw) not in self._full:  # matched by its digits only: never swallow a preceding word
+                first = re.search(r"\d", raw)
+                s += first.start()
+            lead = len(t[s:e]) - len(t[s:e].lstrip(" .-/_"))
+            trail = len(t[s:e]) - len(t[s:e].rstrip(" .-/_"))
+            spans.append((s + lead, e - trail))
         for m in self._shape_regex().finditer(t):
             spans.append((m.start(), m.end()))
         return sorted(set(spans))

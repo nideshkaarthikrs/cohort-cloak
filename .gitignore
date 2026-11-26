@@ -16,3 +16,5 @@ kit/
 .DS_Store
 .tmp_scan/
 .tmp_sweep/
+stress/
+stress_s*/

@@ -53,3 +53,8 @@ def test_shifted_name_values_stay_name_role():
 def test_header_says_notes_but_values_are_phones():
     rows = [["9876543210"], ["8081120924"], ["7286490658"]]
     assert infer_roles(["Notes"], rows) == ["phone"]
+
+
+def test_c_o_and_k_c_o_labels_are_clinical_not_relative():
+    assert header_role("C/O")[0] != "relative_name" and header_role("K/C/O")[0] != "relative_name"
+    assert header_role("S/D/W of")[0] == "relative_name"

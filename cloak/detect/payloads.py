@@ -34,7 +34,7 @@ import re as _re
 from collections import namedtuple
 from urllib.parse import quote, unquote
 
-_PCT = _re.compile(r"(?:%[0-9A-Fa-f]{2}){2,}")
+_PCT = _re.compile(r"%[0-9A-Fa-f]{2}(?:[^%]{0,40}%[0-9A-Fa-f]{2})+")
 _UESC = _re.compile(r"(?:\\u[0-9a-fA-F]{4}){2,}")
 _ENT = _re.compile(r"(?:&#(?:x[0-9a-fA-F]+|\d+);){2,}")
 _Layer = namedtuple("_Layer", "detect run")

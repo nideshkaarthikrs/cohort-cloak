@@ -54,6 +54,9 @@ relative_name:
   - next of kin
   - nok
   - attendant
+  - s d w of
+  - sdw of
+  - son daughter wife of
   - pita ka naam
   - pati ka naam
   - pita pati ka naam
@@ -134,6 +137,18 @@ mrn:
   - hospital uhid
   - hospital id
   - patient reference
+  - hosp no
+  - hosp number
+  - hospital no
+  - hospital number
+  - opd no
+  - opd number
+  - mr number
+  - card no
+  - file no
+  - file number
+  - reg id
+  - registration id
   - identifier
   - identifiers
   - पंजीकरण सं

@@ -17,7 +17,9 @@ _HONORIFIC_PRE = re.compile(r"\b(?:Shri|Smt|Mr|Mrs|Ms|Km|Late|Master|Pt)\.?\s+("
 _HONORIFIC_POST = re.compile(r"((?:" + _LATIN_TOK + r"\s+){0,2}[A-Z][a-z]{2,})\s+(?i:ji|sahab|sahib|saheb|saab|bhai|bhaiya|didi|amma|behenji|behen|babu|mam|madam|sir)\b")
 _CUE_WORDS = (r"called\s+by|raised\s+by|witnessed\s+by|informed\s+by|reported\s+by|visitor|attendant|guardian|caller|"
               r"contact\s+person|brought\s+by|next\s+of\s+kin|patient\s+name|pt\s+name|name\s+of\s+patient|report\s+of|"
-              r"collected\s+from|sample\s+received\s+from|received\s+from|spoke\s+to|spoke\s+with|meeting\s+with|handed\s+over\s+to")
+              r"collected\s+from|sample\s+received\s+from|received\s+from|spoke\s+to|spoke\s+with|meeting\s+with|handed\s+over\s+to|"
+              r"relative|brother|sister|son|daughter|wife|husband|mother|father|friend|neighbou?r|nephew|niece|uncle|aunt|"
+              r"cousin|spouse|accompanied\s+by|escorted\s+by|signed\s+by|consent\s+(?:given\s+)?by")
 _CUE = re.compile(r"(?i:\b(?:" + _CUE_WORDS + r"))\s*[:,\-(]*\s*(?i:(?:(?:is|was|by|named|name|mr|mrs|ms|shri|smt)\b\.?\s*){0,2})(" + _NAMERUN + ")")
 _BEFORE_REL = re.compile(r"(" + _NAMERUN + r")\s*,?\s*(?:S/o|D/o|W/o|S/O|D/O|W/O)\b")
 _BEFORE_DASH_HIST = re.compile(r"(" + _NAMERUN + r")\s+-\s+(?:K/C/O|H/O|C/O)\b")

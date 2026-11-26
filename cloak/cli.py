@@ -24,6 +24,7 @@ from cloak.rewrite.filenames import sanitize_paths
 from cloak.link.units import link_units, patient_for
 from cloak.privacy.plan import build as build_plan
 from cloak.rewrite.apply import resolve, substitute
+from cloak.security.store import SpillStore
 from cloak.rewrite.structured import transform_csv, transform_json, transform_text
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -119,34 +120,47 @@ def main(argv=None) -> int:
     log = RunLog(out / "logs" / "run.log")
 
     scrubber = Scrubber(policy)
-    # pass 1: read and parse everything, then learn names/IDs from every channel (output discarded)
-    items = []  # (rel, sha, parsed|None, reason)
-    for path in _list_files(inp):
-        rel = path.relative_to(inp).as_posix()
-        sha, parsed, reason = "", None, None
-        try:
-            raw = path.read_bytes()
-            sha = hashlib.sha256(raw).hexdigest()
-            parsed = parse(raw, path.suffix, int(policy["max_json_depth"]))
-        except Exception as exc:  # noqa: BLE001 - global guard: quarantine, record the class only
-            reason = reason_for(exc)
-            if not sha:
-                sha = hashlib.sha256(b"").hexdigest()
-        items.append((rel, sha, parsed, reason))
-    for fid, (rel, _sha, _parsed, _reason) in enumerate(items):
-        scrubber.file_tokens[fid] = tuple(t for t in re.findall(r"[a-z]{3,}", rel.rsplit("/", 1)[-1].casefold()))
-    locs_by_item = []
-    for fid, (_rel, _sha, parsed, _reason) in enumerate(items):
+    store = SpillStore(keys.at_rest_key, int(float(policy.get("spill_threshold_mb", 64)) * 1048576))
+    try:
+        return _run(a, inp, out, keys, policy, scrubber, store, log, t0)
+    finally:
+        store.close()
+        log.close()
+
+
+def _read_parse(path, policy):
+    """(sha, parsed|None, reason|None) for one file. Raw bytes are never kept."""
+    sha, parsed, reason = "", None, None
+    try:
+        raw = path.read_bytes()
+        sha = hashlib.sha256(raw).hexdigest()
+        parsed = parse(raw, path.suffix, int(policy["max_json_depth"]))
+    except Exception as exc:  # noqa: BLE001 - global guard: quarantine, record the class only
+        reason = reason_for(exc)
+        if not sha:
+            sha = hashlib.sha256(b"").hexdigest()
+    return sha, parsed, reason
+
+
+def _run(a, inp, out, keys, policy, scrubber, store, log, t0):
+    files_in = _list_files(inp)
+    rels = [p.relative_to(inp).as_posix() for p in files_in]
+    for fid, rel in enumerate(rels):
+        scrubber.file_tokens[fid] = tuple(re.findall(r"[a-z]{3,}", rel.rsplit("/", 1)[-1].casefold()))
+
+    # pass 1 (learn): names/IDs/date-order votes from every channel; output discarded, files re-read in pass 2
+    shas, reasons = [], []
+    for fid, path in enumerate(files_in):
+        sha, parsed, reason = _read_parse(path, policy)
+        shas.append(sha)
+        reasons.append(reason)
         scrubber.fid = fid
-        locs = []
         if parsed is not None:
             try:
-                locs = _locs(parsed)
-                _render(parsed, scrubber, locs)
+                _render(parsed, scrubber, _locs(parsed))
             except Exception:  # noqa: BLE001 - surfaced again (and quarantined) in the final pass
                 pass
-        locs_by_item.append(locs)
-
+        del parsed
     if scrubber.year_counts:
         scrubber.ref_year = sorted(scrubber.year_counts, key=lambda y: (-scrubber.year_counts[y], y))[0]
 
@@ -154,26 +168,39 @@ def main(argv=None) -> int:
     scrubber.identifiers = 0
     scrubber.stats.clear()
     scrubber.sink, scrubber.table = [], []
-    results = []  # (rel, sha, text|None, locs, reason)
-    for fid, (rel, sha, parsed, reason) in enumerate(items):
-        data, locs = None, []
+    results = []  # (rel, sha, store handle|None, locs, reason)
+    for fid, path in enumerate(files_in):
+        sha, parsed, reason = shas[fid], None, reasons[fid]
+        handle, locs = None, []
+        if reason is None:
+            sha2, parsed, reason = _read_parse(path, policy)
+            if sha2 != sha and reason is None:
+                parsed, reason = None, "input_changed_during_run"
         if parsed is not None:
             scrubber.fid = fid
             mark = (len(scrubber.sink), len(scrubber.table))
             try:
                 locs = _locs(parsed)
-                data, n = _render(parsed, scrubber, locs)
+                data, _n = _render(parsed, scrubber, locs)
+                handle = store.put(data)
             except Exception as exc:  # noqa: BLE001
-                reason, data, locs = reason_for(exc), None, []
+                reason, handle, locs = reason_for(exc), None, []
                 del scrubber.sink[mark[0]:], scrubber.table[mark[1]:]
-        results.append((rel, sha, data, locs, reason))
-        log.event("file_done", status="quarantined" if data is None else "sanitized", records=len(locs))
+        del parsed
+        results.append((rels[fid], sha, handle, locs, reason))
+        log.event("file_done", status="quarantined" if handle is None else "sanitized", records=len(locs))
     identifiers = scrubber.identifiers
 
-    # link: evidence per unit -> constrained clusters -> pseudonyms
-    unit_psn, unit_info, link_stats = link_units(results, scrubber.sink, keys, policy)
-    plan = build_plan(keys, policy, scrubber.table, unit_psn, [r[0] for r in results], unit_info)
-    repl, placed, touched = resolve(scrubber.table, unit_psn, plan)
+    # link -> privacy plan -> resolve placement sentinels. If linking fails, fall back to "nothing linked".
+    try:
+        unit_psn, unit_info, link_stats = link_units(results, scrubber.sink, keys, policy)
+        plan = build_plan(keys, policy, scrubber.table, unit_psn, rels, unit_info)
+        repl, placed, touched = resolve(scrubber.table, unit_psn, plan)
+    except Exception:  # noqa: BLE001
+        log.event("link_failed")
+        unit_psn, unit_info, link_stats = {}, {}, {"clusters": 0, "units": 0, "fragments": 0}
+        plan = build_plan(keys, policy, scrubber.table, unit_psn, rels, unit_info)
+        repl, placed, touched = resolve(scrubber.table, unit_psn, plan)
     log.event("linked", clusters=link_stats["clusters"], units=link_stats["units"], fragments=link_stats["fragments"])
 
     mapping = sanitize_paths([r[0] for r in results if r[2] is not None], scrubber.names, scrubber.ids)
@@ -185,7 +212,7 @@ def main(argv=None) -> int:
         out_rel = mapping[rel]
         dest = out / "sanitized" / out_rel
         try:
-            text = substitute(data.decode("utf-8"), repl).encode("utf-8")
+            text = substitute(store.get(data).decode("utf-8"), repl).encode("utf-8")
             dest.parent.mkdir(parents=True, exist_ok=True)
             dest.write_bytes(text)
         except Exception as exc:  # noqa: BLE001
@@ -199,8 +226,7 @@ def main(argv=None) -> int:
     write_records(out / "records.jsonl", records)
     report = build_report(files, records, identifiers, time.monotonic() - t0, scrubber.stats, len(touched))
     write_report(out / "report.json", report)
-    log.event("run_done", files=len(files), records=len(records))
-    log.close()
+    log.event("run_done", files=len(files), records=len(records), spilled=store.spilled)
     c = report["counts"]
     print(f"files {c['files_total']} sanitized {c['files_sanitized']} quarantined {c['files_quarantined']} "
           f"records {c['records_processed']}")

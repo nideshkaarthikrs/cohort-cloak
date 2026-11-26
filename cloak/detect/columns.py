@@ -40,6 +40,7 @@ def _contains(tokens, phrase_tokens) -> bool:
     return any(tokens[i:i + n] == phrase_tokens for i in range(len(tokens) - n + 1))
 
 
+@lru_cache(maxsize=100000)
 def header_role(header: str):
     """Return (role, score) for a header/label/key, or (None, 0.0)."""
     h = norm_header(header)
@@ -77,6 +78,18 @@ def whole_cell_kind(cell: str):
     return None
 
 
+_ID_MIXED = re.compile(r"^(?=(?:.*\d){4})(?=.*[A-Za-z])[A-Za-z0-9][A-Za-z0-9/\-_.]{3,28}$")
+_DATEISH = re.compile(r"^\d{1,4}[/\-.]\d{1,2}[/\-.]\d{1,4}$")
+
+
+def looks_like_id(cell: str) -> bool:
+    """A reference number: letters+digits (UHID-style) or a 6-12 digit string; never a date."""
+    c = cell.strip()
+    if _DATEISH.match(c):
+        return False
+    return bool(_ID_MIXED.match(c)) or bool(re.fullmatch(r"\d{6,12}", c))
+
+
 def looks_like_name(cell: str) -> bool:
     c = cell.strip()
     return bool(_NAME_LATIN.match(c) or _NAME_DEVA.match(c))
@@ -99,6 +112,10 @@ def infer_roles(header, rows, sample: int = 300) -> list:
                 kind = sorted(counts, key=lambda k: (-counts[k], k))[0]
                 if counts[kind] / n >= 0.5:
                     role = HARD_KIND_ROLE[kind]
+            if role is None and n >= 2:
+                ids = [c for c in cells if looks_like_id(c)]
+                if len(ids) / n >= 0.8 and len(set(cells)) / n >= 0.7:
+                    role = "mrn"  # unknown header, values are reference numbers: fail closed
             if role is None and n >= 3:
                 names = [c for c in cells if looks_like_name(c)]
                 multi = sum(1 for c in names if " " in c)

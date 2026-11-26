@@ -65,7 +65,8 @@ def _clean_component(name: str, names=None, ids=None) -> str:
             j = i
             while j + 1 < len(toks) and idish[j + 1]:
                 j += 1
-            if any(flags[i:j + 1]):
+            run_text = "".join(toks[k] + (seps[k] if k < j else "") for k in range(i, j + 1))
+            if any(flags[i:j + 1]) or (ids is not None and ids.find(run_text)):
                 out.append("ID" + seps[j])
             else:
                 out.extend(toks[k] + seps[k] for k in range(i, j + 1))

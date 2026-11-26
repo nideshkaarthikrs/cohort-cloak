@@ -64,6 +64,31 @@ else echo "DIFFERS (good)"; fi
 step "secret grep (output, logs, stdout, stderr)"
 if grep -rqF -e "$SECRET" -e another-secret out_a out_b out_c .tmp_scan/stdout.txt .tmp_scan/stderr.txt --exclude-dir=sanitized 2>/dev/null; then echo "SECRET FOUND"; FAIL=1; else echo "clean"; fi
 
+step "stress sets (unseen names/headers/formats, hidden channels, canaries): seeds 7 and 99, own truth"
+for SEED in 7 99; do
+  D=stress_chk_$SEED; rm -rf $D; mkdir -p $D/tmp $D/home
+  $PY tools/make_stress.py --out $D/in --truth $D/truth.json --seed $SEED > /dev/null
+  TMPDIR=$PWD/$D/tmp HOME=$PWD/$D/home RAKSHA_SECRET=$SECRET $PY main.py --input $D/in --output $D/out > $D/stdout.txt 2> $D/stderr.txt || { echo "STRESS RUN FAILED seed $SEED"; FAIL=1; }
+  python3 $KIT/validate_output.py --input $D/in --output $D/out | tail -1 | sed "s/^/seed $SEED: /"
+  $PY tools/stress_eval.py --input $D/in --output $D/out --truth $D/truth.json | grep -v "^   \|^STRESS" | sed "s/^/seed $SEED: /"
+  $PY tools/stress_eval.py --input $D/in --output $D/out --truth $D/truth.json > $D/eval.txt || FAIL=1
+  grep -q "STRESS ids=0.0[0-4]" $D/eval.txt || { grep -q "STRESS ids=0.0000" $D/eval.txt || { echo "seed $SEED: critical-ID leak above 5%"; FAIL=1; }; }
+  RAKSHA_SECRET=$SECRET $PY main.py --input $D/in --output $D/out2 > /dev/null
+  if diff -r $D/out/sanitized $D/out2/sanitized > /dev/null && cmp -s $D/out/records.jsonl $D/out2/records.jsonl; then echo "seed $SEED: determinism IDENTICAL"; else echo "seed $SEED: determinism DIFFERS"; FAIL=1; fi
+  echo "seed $SEED: leftover files in TMPDIR/HOME: $(find $D/tmp $D/home -type f | wc -l | tr -d ' ')"
+  [ "$(find $D/tmp $D/home -type f | wc -l | tr -d ' ')" = "0" ] || FAIL=1
+  rm -rf $D
+done
+
+step "scaling (stress x1, x4, x10): exponent must be <= 1.15"
+$PY tools/scale_test.py --scales 1,4,10 | tee .tmp_scan/scale.txt | tail -2
+python3 - <<'PYEOF' || FAIL=1
+import re,sys
+t=open(".tmp_scan/scale.txt").read()
+k=float(re.search(r"exponent=([0-9.]+)",t).group(1))
+sys.exit(0 if k<=1.15 else 1)
+PYEOF
+
 step "pytest"
 $PY -m pytest -q || FAIL=1
 

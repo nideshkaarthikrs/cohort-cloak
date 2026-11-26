@@ -73,7 +73,7 @@ def build(keys, policy, table, unit_psn, rels, unit_info) -> Plan:
     n_patients = len({g for g in unit_group.values() if isinstance(g, str)}) or 1  # linked patients (PSN groups)
     cap = int(policy["rare_dx_max_patients"])
     if cap > 0:  # "rare" scales with the cohort: a fixed 8 would blank most diagnoses of a 50-patient set
-        cap = max(2, min(cap, int(float(policy.get("rare_dx_fraction", 0.05)) * n_patients)))
+        cap = max(int(policy.get("rare_dx_floor", 3)), min(cap, int(float(policy.get("rare_dx_fraction", 0.05)) * n_patients)))
     code_level = suppress.rare_levels(group_codes, cap)
     # location facts per unit and per group
     unit_loc = {u: unit_info.get(u, {}) for u in units}
