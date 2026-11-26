@@ -2,6 +2,7 @@
 
 `normalize` returns (shadow, offsets) where offsets[i] is the index in the original of shadow char i.
 """
+import re
 import unicodedata
 
 from cloak.detect.validators import ascii_digits
@@ -28,13 +29,24 @@ def _fold_char(ch: str) -> str:
     return "".join(_HOMO.get(c, c) for c in out)
 
 
+_OCR_NUM = re.compile(r"(?<![A-Za-z0-9])(?=[0-9OolI]{4,}(?![A-Za-z0-9]))(?=(?:[^\d]*\d){3})[0-9OolI]+")
+_OCR_DIGIT = str.maketrans("OolI", "0011")
+
+
+def _fix_scanned_digits(text: str) -> str:
+    """Tokens that are mostly digits with O/l/I standing in for 0/1 (OCR) read as numbers; same length, so offsets hold."""
+    if not _OCR_NUM.search(text):
+        return text
+    return _OCR_NUM.sub(lambda m: m.group(0).translate(_OCR_DIGIT) if sum(c.isdigit() for c in m.group(0)) * 2 >= len(m.group(0)) else m.group(0), text)
+
+
 def normalize(text: str):
     shadow, offsets = [], []
     for i, ch in enumerate(text):
         for c in _fold_char(ch):
             shadow.append(c)
             offsets.append(i)
-    return "".join(shadow), offsets
+    return _fix_scanned_digits("".join(shadow)), offsets
 
 
 def map_span(offsets, start: int, end: int, original_len: int):

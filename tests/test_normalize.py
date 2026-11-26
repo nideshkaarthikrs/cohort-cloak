@@ -23,3 +23,12 @@ def test_span_maps_back_to_original_offsets():
 def test_devanagari_marks_survive():
     shadow, _ = normalize("मोहम्मद शाहिद")
     assert shadow == "मोहम्मद शाहिद"
+
+
+def test_scanner_letters_inside_a_number_read_as_digits_without_touching_words():
+    from cloak.detect.normalize import normalize
+    s, _ = normalize("call 794l2 9879l or UID 643I3O 9O7O8O now")
+    assert "79412 98791" in s and "643130 907080" in s
+    for word in ("Illness", "Olivia", "Hello Ilo", "lOO3"):
+        assert normalize(word)[0] == word
+    assert len(normalize("a 9O7O8O b")[0]) == len("a 9O7O8O b")
