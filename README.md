@@ -109,5 +109,5 @@ causes it is 9 of 625, again tuned, not blind.
 - Entirely new document layouts remain the main risk (first blind run: 7.4% leaked; OCR typos such as `Ph1lomena` and villages inside URL-encoded queries still leak); stress sets and attack numbers are our own, not the organisers'.
 - Procedures and package codes are generalised only in structured fields (not inside prose); `rare_proc_mode: keep` turns it off.
 - OPD file names keep the month; `dob_mode: redact` and village redaction cost generalisation score.
-- Memory grows with the number of events (about 430 MB for 12 MB of dev data repeated ten times, about 980 MB and 64 s for 36 MB).
+- Memory grows with the number of events (about 430 MB for 12 MB of dev data repeated ten times, about 1.1 GB and 81 s for 36 MB under Docker `--cpus=2 --memory=4g`).
 - Weights and thresholds were tuned on the practice data.

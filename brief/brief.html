@@ -78,7 +78,7 @@ from structured fields first and then using them everywhere, with cluster-level 
 <ul>
 <li><b>Targeted attack:</b> A5 stays at 48% of raw on 48 patients; length of stay cannot be hidden by design, and rare conditions are only generalised below the scaled threshold.</li>
 <li><b>New layouts:</b> unseen document layouts are the main risk; our stress sets and attacker are our own work, not the organisers' evaluator, and the unseen-layout result above shows how fast it can fall (43% name leak) before tuning.</li>
-<li><b>Gaps:</b> procedures and package codes are generalised only in structured fields; OPD file names keep the month; memory grows with the number of events (about 980 MB and 64 s for 36 MB of repeated dev data, inside the 4 GB / 15 min limits).</li>
+<li><b>Gaps:</b> procedures and package codes are generalised only in structured fields; OPD file names keep the month; memory grows with the number of events (about 1.1 GB and 81 s for 36 MB of repeated dev data, measured in Docker at 2 CPUs / 4 GB).</li>
 <li><b>Tuning:</b> linkage weights, thresholds and the operating point were tuned on the practice data; generalisation score is low by design (DOB, village, PIN prefix are redacted or coarse).</li>
 <li><b>Next steps:</b> a held-out layout set from a second author, spilling the event table, procedure/package generalisation, and a learned scoring layer for linkage if allowed.</li>
 </ul>
