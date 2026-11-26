@@ -15,8 +15,9 @@ def _pin_replacement(pin: str, mode: str) -> str:
     return "[PIN]" if mode == "redact" else pin[:3] + "***"
 
 
-def rewrite_address(text: str, pin_mode: str = "prefix3"):
-    """Return (rewritten, number_of_replacements)."""
+def rewrite_address(text: str, pin_mode: str = "prefix3", sentinel=None):
+    """Return (rewritten, number_of_replacements). `sentinel(kind, original, payload)` defers tehsil/district/PIN
+    choices to the privacy plan (None: keep tehsil/district, PIN by `pin_mode`)."""
     n = 0
     folded = ascii_digits(text)
     pin = ""
@@ -39,7 +40,12 @@ def rewrite_address(text: str, pin_mode: str = "prefix3"):
         if not s:
             continue
         if _KEEP.match(s):
-            out.append(s)
+            if sentinel is not None and re.match(r"(?i)(?:tehsil|tahsil|taluka|तहसील)", s):
+                out.append(sentinel("tehsil_seg", s, None))
+            elif sentinel is not None and re.match(r"(?i)(?:distt?\.?|district|जिला|ज़िला)", s):
+                out.append(sentinel("district_seg", s, None))
+            else:
+                out.append(s)
             continue
         if _LANDMARK.search(s):
             out.append("[LOCALITY]")
@@ -54,5 +60,6 @@ def rewrite_address(text: str, pin_mode: str = "prefix3"):
         n += 1
     res = ", ".join(out)
     if pin:
-        res = (res + " - " if res else "") + _pin_replacement(pin, pin_mode)
+        pin_text = sentinel("pin", _pin_replacement(pin, pin_mode), pin) if sentinel is not None else _pin_replacement(pin, pin_mode)
+        res = (res + " - " if res else "") + pin_text
     return res, n

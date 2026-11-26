@@ -1,12 +1,15 @@
+# Operating point chosen by tools/sweep.py (proxy 25*(1-risk)*min(1,U/0.4) + 20*U); see README and tools/sweep_results.md
 date_shift_max_days: 180
 age_band_years: 5
 age_top_code: 85
-dob_mode: shift          # shift | year | redact
-village_mode: district   # tehsil | district | redact
-tehsil_mode: keep        # keep | district
+dob_mode: redact         # shift | year | redact
+village_mode: redact     # tehsil | district | redact
+tehsil_mode: district    # keep | district
 pin_mode: prefix3        # prefix3 | redact
-rare_dx_max_patients: 3
-k_min: 3
+rare_dx_max_patients: 8   # cap; the threshold is clamp(floor(rare_dx_fraction * patients), 2, cap)
+rare_dx_fraction: 0.05
+k_min: 5
+k_max_level: 3
 link_threshold: 10
 soft_link_margin: 3
 name_confidence_threshold: 0.6

@@ -1,6 +1,7 @@
 """Role-based rewriting on invented records: CSV, JSON/FHIR, text, hidden channels."""
 import base64
 import json
+import re
 
 from conftest import run_main
 
@@ -12,14 +13,17 @@ CSV_REG = (
 )
 
 
-def _run(tmp_path, files):
+NO_K = {"k_min": 1, "rare_dx_max_patients": 0, "dob_mode": "shift", "village_mode": "redact", "tehsil_mode": "keep"}
+
+
+def _run(tmp_path, files, policy=None):
     inp = tmp_path / "in"
     for rel, data in files.items():
         p = inp / rel
         p.parent.mkdir(parents=True, exist_ok=True)
         p.write_bytes(data if isinstance(data, bytes) else data.encode("utf-8"))
     out = tmp_path / "out"
-    res = run_main(inp, out)
+    res = run_main(inp, out, policy=NO_K if policy is None else policy)
     assert res.returncode == 0, res.stderr
     return out
 
@@ -35,9 +39,9 @@ def test_csv_hinglish_headers_roles_and_clinical_kept(tmp_path):
     text = _only(out, "reg")
     for leaked in ("Testkumar", "ZZH-0012345", "98765", "43210", "Fakepur", "Test Mandir", "229001", "12-04-1984"):
         assert leaked not in text, leaked
-    assert "Naam" in text and "Umar" in text and "41" in text
+    assert "Naam" in text and "Umar" in text and "40-44" in text
     assert "Tehsil Sadar" in text and "Distt. Faketown" in text and "229***" in text
-    assert "sulfa" in text and "1984" in text
+    assert "sulfa" in text and re.search(r"\d\d-\d\d-198[34]", text)
 
 
 def test_csv_unknown_column_with_phone_values_is_caught_by_value_profile(tmp_path):
@@ -76,7 +80,8 @@ def test_text_discharge_template(tmp_path):
     text = _only(out, "d")
     for leaked in ("Sita", "Fakeperson", "123456", "99999", "Gopal", "Nowhere", "98765", "9876543210", "229001"):
         assert leaked not in text, leaked
-    for kept in ("52 Yrs/F", "Dr. Anil Docname (MD Medicine)", "Ward 4 (Medicine) / Bed 29", "N39.0",
+    assert re.search(r"50-54 Yrs/F", text)
+    for kept in ("Dr. Anil Docname (MD Medicine)", "Ward 4 (Medicine) / Bed 29", "N39.0",
                  "650 mg 1-0-1 x 5 days", "Tehsil Sadar"):
         assert kept in text, kept
 
@@ -122,7 +127,7 @@ def test_fhir_patient_fields_and_base64_attachment(tmp_path):
 def test_json_numeric_pii_becomes_zero_and_key_names_replaced(tmp_path):
     out = _run(tmp_path, {"j/a.json": json.dumps({"patient": {"name": "Ravi Testkumar", "aadhar_no": 826573307111, "age": 41}})})
     doc = json.loads(_only(out, "j"))
-    assert doc["patient"]["aadhar_no"] == 0 and doc["patient"]["age"] == 41
+    assert doc["patient"]["aadhar_no"] == 0 and doc["patient"]["age"] == "40-44"
 
 
 def test_clean_documents_unchanged(tmp_path):

@@ -12,6 +12,9 @@ from cloak.detect.normalize import map_span, normalize
 from cloak.detect.payloads import ENCODINGS
 from cloak.detect.patterns import find_hard
 from cloak.detect.validators import ascii_digits
+from cloak.privacy.ages import find_ages, first_number_span
+from cloak.privacy.dates import OrderVotes, find_dates
+from cloak.privacy.suppress import ICD_RX
 from cloak.rewrite.filenames import _clean_component
 
 PLACEHOLDER = {"PHONE": "[PHONE]", "AADHAAR": "[AADHAAR]", "ABHA": "[ABHA]", "PAN": "[PAN]", "EMAIL": "[EMAIL]",
@@ -50,14 +53,32 @@ class Scrubber:
         self.table = None       # list of (fid, rec, kind, fallback) or None
         self.fid = 0
         self.rec = "doc"
+        # Phase 5: date-order inference, reference year, per-source context
+        self.date_votes = OrderVotes()
+        self.year_counts = Counter()
+        self.ref_year = 2026
+        self.file_tokens = {}   # fid -> tokens of the file name (hospital signature)
+        self.src = ""           # current column/key/label, for d/m vs m/d votes
+        self.dx_pending = None  # ICD code of the enclosing coded element (pairs code with display)
 
     def emit(self, kind: str, value) -> None:
         if self.sink is not None and value is not None and str(value).strip():
             self.sink.append((self.fid, self.rec, kind, str(value)))
 
-    def sentinel(self, kind: str, fallback: str) -> str:
-        self.table.append((self.fid, self.rec, kind, fallback))
+    def sentinel(self, kind: str, fallback: str, payload=None) -> str:
+        self.table.append((self.fid, self.rec, kind, fallback, payload))
         return f"@@PSN{len(self.table) - 1}@@"
+
+    def order(self) -> str:
+        keys = [(self.fid,)] + [("tok", t) for t in self.file_tokens.get(self.fid, ())]
+        return self.date_votes.order((self.fid, self.src), keys, "dmy")
+
+    def vote_orders(self, layouts) -> None:
+        if self.table is None:  # votes are collected in the learn pass only, then frozen
+            keys = [(self.fid, self.src), (self.fid,)] + [("tok", t) for t in self.file_tokens.get(self.fid, ())]
+            for lay in layouts:
+                for k in keys:
+                    self.date_votes.vote(k, lay)
 
     # ---- registration of known values -------------------------------------------------
     def learn(self, role: str, value) -> None:
@@ -91,6 +112,22 @@ class Scrubber:
             self.identifiers += 1
             self.stats[ROLE_PLACEHOLDER[role]] += 1
             return self.sentinel("name" if role == "patient_name" else "mrn", ROLE_PLACEHOLDER[role]), 1
+        if role in ("age", "age_sex"):
+            span = first_number_span(value)
+            if self.table is None or span is None:
+                return value, 0
+            self.identifiers += 1
+            self.stats["[AGE]"] += 1
+            age = int(value[span[0]:span[1]])
+            return value[:span[0]] + self.sentinel("age", value[span[0]:span[1]], age) + value[span[1]:], 1
+        if role == "village" and self.table is not None and self.policy.get("village_mode") in ("tehsil", "district"):
+            self.identifiers += 1
+            self.stats["[VILLAGE]"] += 1
+            return self.sentinel("village", "[VILLAGE]", self.policy["village_mode"]), 1
+        if role == "district" and self.table is not None:
+            return self.sentinel("district", value), 0
+        if role == "tehsil" and self.table is not None:
+            return self.sentinel("tehsil", value), 0
         if role in ROLE_PLACEHOLDER and role not in ("village", "house", "locality", "landmark"):
             self.learn(role, value)
             self.identifiers += 1
@@ -101,7 +138,8 @@ class Scrubber:
             self.stats[ROLE_PLACEHOLDER[role]] += 1
             return ROLE_PLACEHOLDER[role], 1
         if role == "address":
-            out, n = rewrite_address(value, self.policy.get("pin_mode", "prefix3"))
+            out, n = rewrite_address(value, self.policy.get("pin_mode", "prefix3"),
+                                     self.sentinel if self.table is not None else None)
             self.identifiers += n
             self.stats["[ADDRESS]"] += n
             return out, n
@@ -109,6 +147,8 @@ class Scrubber:
             d = re.sub(r"\D", "", ascii_digits(value))
             self.identifiers += 1
             self.stats["[PIN]"] += 1
+            if self.table is not None and len(d) == 6:
+                return self.sentinel("pin", d[:3] + "***" if self.policy.get("pin_mode") == "prefix3" else "[PIN]", d), 1
             if len(d) == 6 and self.policy.get("pin_mode", "prefix3") == "prefix3":
                 return d[:3] + "***", 1
             return "[PIN]", 1
@@ -122,7 +162,15 @@ class Scrubber:
         if role == "dob":
             self.identifiers += 1
             self.stats["[DOB]"] += 1
-            return dob_year(value), 1
+            mode = self.policy.get("dob_mode", "shift")
+            if mode == "shift" and self.table is not None:
+                toks = find_dates(ascii_digits(value), self.order())
+                if toks:
+                    t = toks[0]
+                    return (value[:t.start] + self.sentinel("date", value[t.start:t.end], (t, self.ref_year))
+                            + value[t.end:]), 1
+                return "[DOB]", 1
+            return (dob_year(value) if mode != "redact" else "[DOB]"), 1
         return self.scrub_text(value, doc_labels=("\n" in value))
 
     # ---- free text ---------------------------------------------------------------------
@@ -145,6 +193,7 @@ class Scrubber:
             for s in hard:
                 self.emit("hard:" + s.kind, shadow[s.start:s.end])
         fixed = [(s.start, s.end, PLACEHOLDER[s.kind]) for s in hard]
+        fixed += self._privacy_spans(shadow, guards, hard)
         phone_spans = [(s.start, s.end) for s in hard if s.kind == "PHONE"]
         for s, e in self.ids.find(shadow):
             fixed.append((s, e, "[ID]"))
@@ -166,11 +215,17 @@ class Scrubber:
         mapped = []
         for s, e, ph in spans:
             a, b = map_span(offs, s, e, len(text))
+            if isinstance(ph, tuple):  # generalisation resolved after clustering
+                kind, payload = ph
+                if self.table is None:
+                    continue
+                ph = self.sentinel(kind, text[a:b], payload)
             mapped.append((a, b, ph))
         for a, b, ph in reversed(sorted(mapped)):
             text = text[:a] + ph + text[b:]
         for _a, _b, ph in mapped:
-            self.stats[ph] += 1
+            if not ph.startswith("@@"):
+                self.stats[ph] += 1
         self.identifiers += len(mapped)
         return text, len(mapped) + n_enc
 
@@ -188,12 +243,46 @@ class Scrubber:
         return text, total
 
     def _scrub_plain_no_enc(self, text: str):
-        saved = self._scrub_encoded
+        saved, saved_table = self._scrub_encoded, self.table
         self._scrub_encoded = lambda t: (t, 0)  # prevent recursion into the same layers
+        self.table = None                      # no placement sentinels inside re-encoded text
         try:
             return self._scrub_plain(text)
         finally:
-            self._scrub_encoded = saved
+            self._scrub_encoded, self.table = saved, saved_table
+
+    def _privacy_spans(self, shadow: str, guards, hard) -> list:
+        """Dates, ages and ICD codes (with their display text) as generalisation spans."""
+        out = []
+        skip = [(s.start, s.end) for s in hard]
+        soft = [(a, b) for a, b, k in guards if k in ("frequency", "vital", "range", "dose", "loinc")]
+        votes = []
+        toks = find_dates(shadow, self.order(), skip, votes, soft_skip=soft)
+        if votes:
+            self.vote_orders(votes)
+        taken = list(skip) + soft
+        for t in toks:
+            if t.year:
+                self.year_counts[t.year] += 1
+            out.append((t.start, t.end, ("date", (t, self.ref_year))))
+            taken.append((t.start, t.end))
+        if self.table is None:
+            return out
+        for s, e in find_ages(shadow):
+            if not any(s < b and a < e for a, b in taken):
+                out.append((s, e, ("age", int(shadow[s:e]))))
+                taken.append((s, e))
+        for m in ICD_RX.finditer(shadow):
+            if any(m.start() < b and a < m.end() for a, b in taken):
+                continue
+            code = m.group(1).upper()
+            out.append((m.start(1), m.end(1), ("icd", code)))
+            taken.append((m.start(1), m.end(1)))
+            pm = re.search(r"([^;:\n|()]{3,120}?)\s*\(\s*$", shadow[:m.start(1)])
+            if pm and re.search(r"[A-Za-z]{3}", pm.group(1)) and not any(pm.start(1) < b and a < pm.end(1) for a, b in taken):
+                out.append((pm.start(1), pm.end(1), ("icd_text", code)))
+                taken.append((pm.start(1), pm.end(1)))
+        return out
 
     @staticmethod
     def _resolve(spans):
@@ -224,6 +313,7 @@ class Scrubber:
             role, _ = header_role(label)
             vstart = m.end()
             vend = marks[i + 1].start() if i + 1 < len(marks) else len(line)
+            self.src = label
             if role is None and ("/" in label or "." in label):
                 # compound labels such as "Pt. Name/Age": try each part
                 for part in re.split(r"[/.]", label):
@@ -245,11 +335,7 @@ class Scrubber:
                 total += n
                 pos = vend
                 continue
-            if role == "age_sex":
-                self.emit("age_sex", value.rstrip())
-                new, n = value.rstrip(), 0
-            else:
-                new, n = self.scrub_value(role, value.rstrip())
+            new, n = self.scrub_value(role, value.rstrip())
             pieces.append(new + trail)
             total += n
             pos = vend

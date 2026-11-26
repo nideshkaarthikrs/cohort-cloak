@@ -43,7 +43,14 @@ def link_units(results, sink, keys, policy):
             groups[r].append(evs[i])
     psn_by_root = pseudonym.assign(keys, groups)
     unit_psn = {u: (psn_by_root[final[i]] if final[i] is not None else None) for i, u in enumerate(units)}
-    return unit_psn, {"clusters": len(groups), "units": len(units), "fragments": frag}
+    unit_info = {}
+    for i, u in enumerate(units):
+        info = {"gender": evs[i].gender or ""}
+        for kind, value in by_unit.get(u, ()):
+            if kind in ("district", "tehsil", "state") and kind not in info:
+                info[kind] = value.strip()
+        unit_info[u] = info
+    return unit_psn, unit_info, {"clusters": len(groups), "units": len(units), "fragments": frag}
 
 
 def patient_for(fid, loc, locs, unit_psn, placed):

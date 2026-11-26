@@ -21,7 +21,7 @@ def write_records(path: Path, records: list) -> None:
             f.write(json.dumps(r, ensure_ascii=False, sort_keys=True) + "\n")
 
 
-def build_report(files: list, records: list, identifiers: int, seconds: float, entities=None) -> dict:
+def build_report(files: list, records: list, identifiers: int, seconds: float, entities=None, generalized: int = 0) -> dict:
     n_san = sum(e["status"] == "sanitized" for e in files)
     return {
         "schema": "raksha-report/1",
@@ -30,7 +30,7 @@ def build_report(files: list, records: list, identifiers: int, seconds: float, e
             "files_total": len(files), "files_sanitized": n_san, "files_quarantined": len(files) - n_san,
             "records_processed": len(records), "identifiers_detected": identifiers,
             "records_linked": sum(r["patient"] is not None for r in records),
-            "records_generalized": 0, "records_suppressed": 0, "records_quarantined": 0,
+            "records_generalized": generalized, "records_suppressed": 0, "records_quarantined": 0,
         },
         "entities": {k.strip("[]"): entities[k] for k in sorted(entities)} if entities else {},
         "timing": {"seconds": round(seconds, 2)},

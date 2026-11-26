@@ -3,6 +3,7 @@ import re
 
 from cloak.detect.columns import PII_ROLES, header_role, infer_roles
 from cloak.detect.guards import guard_spans, guarded
+from cloak.privacy.suppress import ICD_RX
 from cloak.detect.payloads import ATTACHMENT_PLACEHOLDER, decode_b64_text, encode_b64_text, looks_b64
 from cloak.rewrite.keys_headers import safe_header, safe_key
 
@@ -20,6 +21,19 @@ _KEEP_KEYS = {"practitioner", "performer", "author", "requester", "doctor", "org
               "facility", "hospital", "recorder", "asserter", "participant", "individualpractitioner", "consultant"}
 _RESOURCE_PERSON = {"Patient": "patient", "RelatedPerson": "relative", "Practitioner": "keep", "PractitionerRole": "keep",
                     "Organization": "keep", "Location": "keep", "HealthcareService": "keep"}
+
+
+def _dict_icd(d: dict):
+    """ICD-10 code of a coded element ({code, display} or {coding: [{code}], text}), else None."""
+    code = d.get("code")
+    if isinstance(code, str) and ICD_RX.fullmatch(code.strip()):
+        return code.strip().upper()
+    coding = d.get("coding")
+    if isinstance(coding, list):
+        for c in coding:
+            if isinstance(c, dict) and isinstance(c.get("code"), str) and ICD_RX.fullmatch(c["code"].strip()):
+                return c["code"].strip().upper()
+    return None
 
 
 def _nk(key: str) -> str:
@@ -42,6 +56,13 @@ def transform_csv(header, body, scrubber):
     """Return (new_header, new_body, count)."""
     roles = infer_roles(header, body)
     count = 0
+    if scrubber.table is None:  # d/m vs m/d hints from headers such as "DOB (MM/DD/YYYY)"
+        for j, h in enumerate(header):
+            scrubber.src = f"c{j}"
+            if re.search(r"(?i)\bmm\W{0,3}dd", h):
+                scrubber.vote_orders(["mdy"] * 1000)
+            elif re.search(r"(?i)\bdd\W{0,3}mm", h):
+                scrubber.vote_orders(["dmy"] * 1000)
     new_header, seen = [], {}
     for h in header:
         if safe_header(h, scrubber):
@@ -57,6 +78,7 @@ def transform_csv(header, body, scrubber):
         out = []
         for j, cell in enumerate(row):
             role = roles[j] if j < len(roles) else None
+            scrubber.src = f"c{j}"
             if not cell.strip():
                 out.append(cell)
                 continue
@@ -136,7 +158,12 @@ def transform_json(data, scrubber, locs=()):
     def scalar(key, v, ctx):
         if isinstance(v, bool) or v is None or isinstance(v, float):
             return v
+        scrubber.src = key or ""
         role = _leaf_role(key, ctx) if key is not None else (ctx.role if ctx.role else None)
+        if isinstance(v, int) and role == "age" and scrubber.table is not None and 0 <= v <= 120:
+            scrubber.emit("age", v)
+            count[0] += 1
+            return scrubber.sentinel("age", str(v), v)
         if isinstance(v, int):
             if role in PII_ROLES and role not in ("dob",):
                 scrubber.learn(role, v)
@@ -165,6 +192,10 @@ def transform_json(data, scrubber, locs=()):
                     scrubber.table = saved
                 count[0] += n
                 return encode_b64_text(new)
+        if (scrubber.table is not None and scrubber.dx_pending and _nk(key or "") in ("display", "text")
+                and not looks_b64(v)):
+            count[0] += 1
+            return scrubber.sentinel("icd_text", v, scrubber.dx_pending)
         if _nk(key or "") == "div":
             count[0] += 1
             return '<div xmlns="http://www.w3.org/1999/xhtml">[REDACTED]</div>' if v.lstrip().startswith("<") else REDACTED
@@ -187,19 +218,27 @@ def transform_json(data, scrubber, locs=()):
         return _walk(v, key, ctx, path)
 
     def _walk(v, key, ctx, path):
-        if isinstance(v, dict):
-            rt = v.get("resourceType")
-            if isinstance(rt, str) and rt in _RESOURCE_PERSON:
-                ctx = _Ctx(None, _RESOURCE_PERSON[rt], rt == "RelatedPerson")
-            url = v.get("url")
-            if isinstance(url, str) and "/" in url:
-                hint, _ = header_role(url.rstrip("/").rsplit("/", 1)[-1].replace("-", " ").replace("_", " "))
-                if hint in PII_ROLES:
-                    relative = hint == "relative_name" or ctx.relative
-                    ctx = _Ctx(hint, ctx.person, relative, ctx.ref)
-            bad = sorted(k for k in v if not safe_key(k, scrubber))
-            rank = {k: i for i, k in enumerate(bad)}
-            out = {}
+        if isinstance(v, list):
+            return [walk(x, key, ctx, path + (i,)) for i, x in enumerate(v)]
+        if not isinstance(v, dict):
+            return scalar(key, v, ctx)
+        rt = v.get("resourceType")
+        if isinstance(rt, str) and rt in _RESOURCE_PERSON:
+            ctx = _Ctx(None, _RESOURCE_PERSON[rt], rt == "RelatedPerson")
+        url = v.get("url")
+        if isinstance(url, str) and "/" in url:
+            hint, _ = header_role(url.rstrip("/").rsplit("/", 1)[-1].replace("-", " ").replace("_", " "))
+            if hint in PII_ROLES:
+                relative = hint == "relative_name" or ctx.relative
+                ctx = _Ctx(hint, ctx.person, relative, ctx.ref)
+        bad = sorted(k for k in v if not safe_key(k, scrubber))
+        rank = {k: i for i, k in enumerate(bad)}
+        out = {}
+        prev_dx = scrubber.dx_pending
+        dx = _dict_icd(v)
+        if dx:
+            scrubber.dx_pending = dx
+        try:
             for k, x in v.items():
                 if k in rank:
                     nk = "[KEY]" if rank[k] == 0 else f"[KEY]-{rank[k] + 1}"
@@ -207,10 +246,14 @@ def transform_json(data, scrubber, locs=()):
                 else:
                     nk = k
                 out[nk] = walk(x, k, _child_ctx(k, x, ctx, v) if isinstance(x, (dict, list)) else ctx, path + (k,))
-            return out
-        if isinstance(v, list):
-            return [walk(x, key, ctx, path + (i,)) for i, x in enumerate(v)]
-        return scalar(key, v, ctx)
+        finally:
+            scrubber.dx_pending = prev_dx
+        if isinstance(rt, str) and out.get("birthDate") == "[DOB]":
+            # FHIR R4: a masked date is expressed with the data-absent-reason extension, not a placeholder string
+            del out["birthDate"]
+            out["_birthDate"] = {"extension": [{"url": "http://hl7.org/fhir/StructureDefinition/data-absent-reason",
+                                                 "valueCode": "masked"}]}
+        return out
 
     return walk(data, None, _Ctx()), count[0]
 

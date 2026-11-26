@@ -2,6 +2,7 @@
 import argparse
 import csv
 import hashlib
+import re
 import io
 import json
 import os
@@ -21,6 +22,7 @@ from cloak.report import build_report, write_records, write_report
 from cloak.detect.engine import Scrubber
 from cloak.rewrite.filenames import sanitize_paths
 from cloak.link.units import link_units, patient_for
+from cloak.privacy.plan import build as build_plan
 from cloak.rewrite.apply import resolve, substitute
 from cloak.rewrite.structured import transform_csv, transform_json, transform_text
 
@@ -103,7 +105,7 @@ def main(argv=None) -> int:
         print("error output_overlaps_input")
         return 2
     keys = Keys(secret.encode("utf-8"))
-    policy = load_policy(ROOT / "config" / "policy.yaml")
+    policy = load_policy(Path(os.environ.get("COHORT_POLICY") or ROOT / "config" / "policy.yaml"))
     policy["ablate_names"] = bool(a.ablate_names)
 
     for stale in ("sanitized", "logs"):
@@ -131,8 +133,11 @@ def main(argv=None) -> int:
             if not sha:
                 sha = hashlib.sha256(b"").hexdigest()
         items.append((rel, sha, parsed, reason))
+    for fid, (rel, _sha, _parsed, _reason) in enumerate(items):
+        scrubber.file_tokens[fid] = tuple(t for t in re.findall(r"[a-z]{3,}", rel.rsplit("/", 1)[-1].casefold()))
     locs_by_item = []
-    for _rel, _sha, parsed, _reason in items:
+    for fid, (_rel, _sha, parsed, _reason) in enumerate(items):
+        scrubber.fid = fid
         locs = []
         if parsed is not None:
             try:
@@ -141,6 +146,9 @@ def main(argv=None) -> int:
             except Exception:  # noqa: BLE001 - surfaced again (and quarantined) in the final pass
                 pass
         locs_by_item.append(locs)
+
+    if scrubber.year_counts:
+        scrubber.ref_year = sorted(scrubber.year_counts, key=lambda y: (-scrubber.year_counts[y], y))[0]
 
     # pass 2: final render with evidence capture and PSN placement sentinels
     scrubber.identifiers = 0
@@ -163,8 +171,9 @@ def main(argv=None) -> int:
     identifiers = scrubber.identifiers
 
     # link: evidence per unit -> constrained clusters -> pseudonyms
-    unit_psn, link_stats = link_units(results, scrubber.sink, keys, policy)
-    repl, placed = resolve(scrubber.table, unit_psn)
+    unit_psn, unit_info, link_stats = link_units(results, scrubber.sink, keys, policy)
+    plan = build_plan(keys, policy, scrubber.table, unit_psn, [r[0] for r in results], unit_info)
+    repl, placed, touched = resolve(scrubber.table, unit_psn, plan)
     log.event("linked", clusters=link_stats["clusters"], units=link_stats["units"], fragments=link_stats["fragments"])
 
     mapping = sanitize_paths([r[0] for r in results if r[2] is not None], scrubber.names, scrubber.ids)
@@ -188,7 +197,7 @@ def main(argv=None) -> int:
             records.append({"file": f"sanitized/{out_rel}", "loc": loc, "patient": psn})
 
     write_records(out / "records.jsonl", records)
-    report = build_report(files, records, identifiers, time.monotonic() - t0, scrubber.stats)
+    report = build_report(files, records, identifiers, time.monotonic() - t0, scrubber.stats, len(touched))
     write_report(out / "report.json", report)
     log.event("run_done", files=len(files), records=len(records))
     log.close()

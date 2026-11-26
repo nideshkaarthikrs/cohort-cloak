@@ -1,4 +1,5 @@
 """Pairwise Fellegi-Sunter-style scoring with hard cannot-link constraints (weights hand-set, see README)."""
+import re
 from functools import lru_cache
 
 from rapidfuzz import fuzz
@@ -17,9 +18,18 @@ W_DEMOTED = 3
 STRONG_KINDS = ("mrn", "aadhaar", "abha", "abhaaddr", "email", "insurance")
 
 
+def _cons(t: str) -> str:
+    return re.sub(r"[aeiou]", "", t)
+
+
 @lru_cache(maxsize=200000)
 def _tok_eq(a: str, b: str) -> bool:
-    return a == b or (len(a) >= 5 and len(b) >= 5 and fuzz.ratio(a, b) >= 88)
+    if a == b:
+        return True
+    if len(a) >= 5 and len(b) >= 5 and fuzz.ratio(a, b) >= 88:
+        return True
+    ca, cb = _cons(a), _cons(b)  # Devanagari renderings keep schwas Latin spellings drop
+    return len(ca) >= 4 and ca == cb and a[0] == b[0]
 
 
 @lru_cache(maxsize=200000)

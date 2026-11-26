@@ -1,0 +1,16 @@
+variant,village_mode,tehsil_mode,pin_mode,dob_mode,age_band_years,rare_dx_max_patients,rare_dx_fraction,k_min,k_max_level,clinical,temporal,generalization,stats,U,A1,A3,A4,A5,risk,proxy
+CHOSEN (policy.yaml),redact,district,prefix3,redact,5,8,0.05,5,3,0.9594,0.9746,0.4116,0.823,0.8953,0.0,0.044,0.021,0.483,0.1096,40.167
+dob shift,redact,district,prefix3,shift,5,8,0.05,5,3,0.9594,0.9838,0.4849,0.8337,0.9061,0.0,0.071,0.25,0.483,0.1608,39.102
+dob year,redact,district,prefix3,year,5,8,0.05,5,3,0.9594,0.9746,0.4756,0.823,0.9017,0.0,0.063,0.25,0.483,0.1592,39.055
+village district,district,district,prefix3,redact,5,8,0.05,5,3,0.9784,0.9746,0.5149,0.823,0.9123,0.0,0.071,0.167,0.483,0.1442,39.64
+village tehsil,tehsil,district,prefix3,redact,5,8,0.05,5,3,0.9594,0.9746,0.4838,0.823,0.9025,0.0,0.11,0.417,0.483,0.202,38.0
+tehsil keep,redact,keep,prefix3,redact,5,8,0.05,5,3,0.9594,0.9746,0.4116,0.823,0.8953,0.0,0.044,0.021,0.483,0.1096,40.167
+pin redact,redact,district,redact,redact,5,8,0.05,5,3,0.9594,0.9746,0.4116,0.823,0.8953,0.0,0.044,0.021,0.483,0.1096,40.167
+age band 10,redact,district,prefix3,redact,10,8,0.05,5,3,0.9594,0.9746,0.2771,0.823,0.8819,0.0,0.023,0.0,0.405,0.0857,40.496
+k_min 0 (no k-anonymity),redact,district,prefix3,redact,5,8,0.05,0,3,0.9784,0.9746,0.7131,0.823,0.9321,0.0,0.151,0.542,0.496,0.2378,37.698
+k_min 3,redact,district,prefix3,redact,5,8,0.05,3,3,0.9697,0.9746,0.4758,0.823,0.9053,0.0,0.052,0.021,0.483,0.1111,40.33
+k max level 2 (keep district),redact,district,prefix3,redact,5,8,0.05,5,2,0.9784,0.9746,0.5786,0.823,0.9187,0.0,0.078,0.188,0.483,0.1496,39.632
+rare dx off,redact,district,prefix3,redact,5,0,0.05,5,3,0.9811,0.9746,0.4116,0.9744,0.9256,0.0,0.044,0.021,0.561,0.1251,40.385
+rare dx fixed 3,redact,district,prefix3,redact,5,3,1.0,5,3,0.9467,0.9746,0.4116,0.7343,0.8775,0.0,0.044,0.021,0.483,0.1096,39.811
+rare dx fixed 8,redact,district,prefix3,redact,5,8,1.0,5,3,0.889,0.9746,0.4116,0.506,0.8231,0.0,0.044,0.021,0.173,0.0476,40.273
+"no privacy layer (dob shift, village district, tehsil keep, k 0, rare off)",district,keep,prefix3,shift,5,0,0.05,0,3,1.0,0.9838,0.8795,0.985,0.9825,0.0,0.249,0.875,0.651,0.355,35.775

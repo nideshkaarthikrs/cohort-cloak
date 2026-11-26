@@ -31,6 +31,12 @@ $PY tools/eval_dev.py --output out_a --truth $TRUTH
 step "linking diagnostics (precision/recall, wrong merges, traps)"
 $PY tools/link_diag.py --output out_a --truth $TRUTH --show 3 | cut -c1-300
 
+step "privacy layer: temporal, bands, generalisation (tools/eval_privacy.py)"
+$PY tools/eval_privacy.py --output out_a --truth $TRUTH | grep -v "^METRICS"
+
+step "attack simulation A1/A3/A4/A5 vs raw (tools/attack_sim.py)"
+$PY tools/attack_sim.py --kit $KIT --release out_a --raw-cache .tmp_scan/raw_attack.json | grep -v "^ATTACK"
+
 step "pseudonym consistency (every claimed PSN appears in its exported file)"
 $PY tools/psn_check.py --output out_a || FAIL=1
 
