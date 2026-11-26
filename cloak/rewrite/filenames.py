@@ -1,4 +1,4 @@
-"""Filename sanitising: drop ID/phone-shaped tokens from every path component."""
+"""Filename sanitising: drop ID/phone-shaped tokens and known names from every path component."""
 import re
 
 _SEP = re.compile(r"([_\-. ()\[\]]+)")
@@ -8,49 +8,56 @@ _ALPHA_SHORT = re.compile(r"^[A-Za-z]{1,5}$")
 def _flagged(tok: str) -> bool:
     if re.search(r"\d{5,}", tok):
         return True
-    return bool(re.search(r"[A-Za-z]", tok) and len(re.findall(r"\d", tok)) >= 3)
+    return bool(re.search(r"[A-Za-z]", tok) and re.search(r"\d{3,}", tok))
 
 
 def _idish(tok: str) -> bool:
     return tok.isdigit() or bool(_ALPHA_SHORT.match(tok) and tok.isupper())
 
 
-def _clean_component(name: str) -> str:
+def _clean_component(name: str, names=None, ids=None) -> str:
     stem, dot, ext = name.rpartition(".")
     if not dot or not stem or len(ext) > 8 or _SEP.search(ext):
         stem, ext, dot = name, "", ""
     parts = _SEP.split(stem)  # token, sep, token, sep, ..., token
     toks, seps = parts[0::2], parts[1::2] + [""]
-    flags = [_flagged(t) for t in toks]
-    idish = [f or _idish(t) for f, t in zip(flags, toks)]
+    is_name = [bool(names is not None and len(t) >= 2 and names.has_token(t)) for t in toks]
+    flags = [(not is_name[i]) and (_flagged(t) or bool(ids is not None and ids.has_token(t))) for i, t in enumerate(toks)]
+    idish = [(not is_name[i]) and (flags[i] or _idish(t)) for i, t in enumerate(toks)]
     out = []
     i = 0
     while i < len(toks):
-        if not idish[i]:
+        if is_name[i]:
+            j = i
+            while j + 1 < len(toks) and is_name[j + 1]:
+                j += 1
+            out.append("NAME" + seps[j])
+            i = j + 1
+        elif idish[i]:
+            j = i
+            while j + 1 < len(toks) and idish[j + 1]:
+                j += 1
+            if any(flags[i:j + 1]):
+                out.append("ID" + seps[j])
+            else:
+                out.extend(toks[k] + seps[k] for k in range(i, j + 1))
+            i = j + 1
+        else:
             out.append(toks[i] + seps[i])
             i += 1
-            continue
-        j = i
-        while j + 1 < len(toks) and idish[j + 1]:
-            j += 1
-        if any(flags[i:j + 1]):
-            out.append("ID" + seps[j])
-        else:
-            out.extend(toks[k] + seps[k] for k in range(i, j + 1))
-        i = j + 1
     return "".join(out) + dot + ext
 
 
-def sanitize_path(rel: str) -> str:
-    return "/".join(_clean_component(c) for c in rel.split("/"))
+def sanitize_path(rel: str, names=None, ids=None) -> str:
+    return "/".join(_clean_component(c, names, ids) for c in rel.split("/"))
 
 
-def sanitize_paths(rels) -> dict:
+def sanitize_paths(rels, names=None, ids=None) -> dict:
     """Map input path -> output path, unique and independent of the order of `rels`."""
     result = {}
     taken = set()
     for rel in sorted(rels):
-        out = sanitize_path(rel)
+        out = sanitize_path(rel, names, ids)
         if out in taken:
             stem, dot, ext = out.rpartition(".")
             if not dot or "/" in ext:

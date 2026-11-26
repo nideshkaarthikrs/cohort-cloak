@@ -1,0 +1,413 @@
+# Multilingual header / label / key synonyms per role. Hand-written and generic (not copied from any dataset).
+# Matching is on normalised tokens: lowercase, camelCase split, punctuation removed.
+patient_name:
+  - patient name
+  - patient
+  - name
+  - full name
+  - first name
+  - last name
+  - given name
+  - family name
+  - surname
+  - middle name
+  - pt name
+  - name of patient
+  - beneficiary name
+  - member name
+  - insured name
+  - naam
+  - nam
+  - mareez ka naam
+  - rogi ka naam
+  - नाम
+  - मरीज़ का नाम
+  - मरीज का नाम
+  - रोगी का नाम
+person_name:
+  - raised by
+  - reported by
+  - called by
+  - caller
+  - informant
+  - visitor
+  - witness
+  - contact person
+  - callback
+  - collected by
+  - brought by
+relative_name:
+  - relative name
+  - relative
+  - guardian
+  - father name
+  - husband name
+  - spouse name
+  - mother name
+  - mothers name
+  - fathers name
+  - husbands name
+  - spouses name
+  - guardians name
+  - wifes name
+  - wife name
+  - next of kin
+  - nok
+  - attendant
+  - pita ka naam
+  - pati ka naam
+  - pita pati ka naam
+  - pita
+  - pati
+  - patni
+  - पिता का नाम
+  - पति का नाम
+  - पति पिता का नाम
+  - अभिभावक
+relation:
+  - relation
+  - relationship
+  - rishta
+  - संबंध
+phone:
+  - phone
+  - phone no
+  - phone number
+  - mobile
+  - mobile no
+  - mobile number
+  - mob
+  - mob no
+  - contact
+  - contact no
+  - contact number
+  - telephone
+  - tel
+  - cell
+  - whatsapp
+  - sampark
+  - मोबाइल
+  - फोन
+  - दूरभाष
+email:
+  - email
+  - e mail
+  - mail
+  - email id
+  - ईमेल
+aadhaar:
+  - aadhaar
+  - aadhar
+  - aadhaar no
+  - aadhar no
+  - aadhaar number
+  - uid
+  - uidai
+  - आधार
+abha:
+  - abha
+  - abha no
+  - abha number
+  - abha id
+  - abha address
+  - health id
+pan:
+  - pan
+  - pan no
+  - payer pan
+  - pan card
+mrn:
+  - uhid
+  - mrn
+  - mr no
+  - reg no
+  - registration no
+  - registration number
+  - patient id
+  - patient ref
+  - patient no
+  - ipd no
+  - ip no
+  - adm no
+  - admission no
+  - case no
+  - hospital uhid
+  - hospital id
+  - patient reference
+  - identifier
+  - identifiers
+  - पंजीकरण सं
+  - पंजीकरण संख्या
+  - आईपीडी सं
+  - आईपीडी संख्या
+  - आईपी सं
+  - भर्ती सं
+insurance:
+  - pmjay id
+  - pmjay
+  - policy no
+  - policy number
+  - insurance id
+  - insurance no
+  - claim id
+  - member id
+  - card no
+  - ayushman id
+address:
+  - address
+  - addr
+  - address note
+  - address line
+  - street
+  - residence
+  - postal address
+  - pata
+  - ghar ka pata
+  - पता
+  - पत्ता
+house:
+  - house
+  - house no
+  - makan
+  - makan no
+  - flat
+  - मकान
+locality:
+  - locality
+  - mohalla
+  - colony
+  - area
+  - ward no
+  - nagar
+  - मोहल्ला
+landmark:
+  - landmark
+  - near
+village:
+  - village
+  - village mohalla
+  - gram mohalla
+  - gaon
+  - gram
+  - gao
+  - city
+  - town
+  - hamlet
+  - ग्राम
+  - गाँव
+  - गांव
+pin:
+  - pin
+  - pin code
+  - pincode
+  - zip
+  - zip code
+  - postal code
+  - postcode
+  - पिन कोड
+tehsil:
+  - tehsil
+  - tahsil
+  - taluka
+  - block
+  - तहसील
+district:
+  - district
+  - distt
+  - jila
+  - zila
+  - जिला
+state:
+  - state
+  - rajya
+  - country
+  - राज्य
+dob:
+  - dob
+  - date of birth
+  - birth date
+  - birthdate
+  - birth
+  - janm tithi
+  - janm
+  - जन्म तिथि
+  - जन्मतिथि
+age:
+  - age
+  - umar
+  - umra
+  - years
+  - आयु
+  - उम्र
+age_sex:
+  - age sex
+  - age gender
+  - age sex f m
+gender:
+  - gender
+  - sex
+  - ling
+  - लिंग
+doctor:
+  - doctor
+  - dr
+  - ref doctor
+  - referred by
+  - referring doctor
+  - consultant
+  - physician
+  - attending
+  - reviewed by
+  - practitioner
+  - radiologist
+  - pathologist
+  - surgeon
+  - author
+  - requester
+  - performer
+  - चिकित्सक
+  - डॉक्टर
+hospital:
+  - hospital
+  - facility
+  - organization
+  - organisation
+  - clinic
+  - lab
+  - laboratory
+  - service provider
+  - serviceprovider
+  - अस्पताल
+department:
+  - department
+  - dept
+  - ward
+  - speciality
+  - specialty
+  - unit
+  - विभाग
+date_event:
+  - date
+  - admission date
+  - discharge date
+  - date of admission
+  - date of discharge
+  - visit date
+  - reg date
+  - registration date
+  - registered
+  - registered on
+  - collected on
+  - reported on
+  - collected
+  - generated
+  - generated at
+  - exported at
+  - timestamp
+  - tarikh
+  - time
+  - period
+  - start
+  - end
+  - authored on
+  - recorded date
+  - effective date time
+  - performed date time
+  - last updated
+  - तारीख
+  - दिनांक
+id_txn:
+  - bill no
+  - bill id
+  - sample id
+  - sample no
+  - visit id
+  - trip
+  - trip id
+  - invoice no
+  - order id
+  - package code
+  - ticket id
+  - tracking id
+  - accession no
+  - encounter id
+clinical:
+  - complaints
+  - complaint
+  - chief complaint
+  - presenting complaints
+  - history
+  - diagnosis
+  - dx
+  - impression
+  - assessment
+  - medication
+  - medications
+  - drug
+  - drugs
+  - rx
+  - prescription
+  - dose
+  - dosage
+  - dosage instruction
+  - strength
+  - frequency
+  - duration
+  - route
+  - form
+  - schedule
+  - category
+  - procedure
+  - test
+  - tests
+  - result
+  - results
+  - value
+  - unit
+  - range
+  - ref range
+  - reference range
+  - loinc
+  - code
+  - display
+  - vitals
+  - bp
+  - pulse
+  - temp
+  - temperature
+  - spo2
+  - weight
+  - weight kg
+  - height
+  - status
+  - advice
+  - course
+  - course in hospital
+  - treatment
+  - investigation
+  - amount
+  - amount inr
+  - qualification
+  - report type
+  - panel
+  - panels
+  - specimen
+  - allergies
+  - allergy
+free_text:
+  - notes
+  - note
+  - remarks
+  - remark
+  - comments
+  - comment
+  - narrative
+  - description
+  - summary
+  - message
+  - observation
+  - text
+  - div
+  - body
+  - to
+  - from

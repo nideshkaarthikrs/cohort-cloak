@@ -60,13 +60,13 @@ def main():
                 elif e.get("critical"):
                     critical.add(e["surface"])
     text = norm("\n".join([blob_of(Path(a.output))] + [blob_of(Path(x)) for x in a.extra if Path(x).exists()]))
-    dtext = digits(text)
     hit_c = sum(1 for c in canaries if c and c in text)
     hit_k = 0
     for s in critical:
         d = digits(s)
         if len(d) >= 6:
-            hit_k += d in dtext
+            # digit core with up to 2 non-alphanumeric separators between digits (like the evaluator)
+            hit_k += bool(re.search(r"(?<!\d)" + r"[\W_]{0,2}".join(d) + r"(?!\d)", text))
         elif norm(s) and norm(s) in text:
             hit_k += 1
     print(f"canaries {hit_c}/{len(canaries)} critical_ids {hit_k}/{len(critical)}")

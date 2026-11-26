@@ -256,7 +256,7 @@ Not used: regex, dateparser, fhir.resources, sklearn-crfsuite, spaCy, splink. An
 |---|---|---|---|
 | 0 Plan | done | plan approved | |
 | 1 Skeleton & contract | done | PASS: CONTRACT OK, canaries 0/4, raw copies 0, determinism identical, secret grep clean, 29 tests | Phase 1 |
-| 2 Structured detection | todo | | |
+| 2 Structured detection | done | PASS: hard IDs 0%, header/key/filename/metadata 0%, medical kept 100%, clean/ unchanged, canaries 0/4, 76 tests | Phase 2 |
 | 3 Free-text detection | todo | | |
 | 4 Linkage & PSN | todo | | |
 | 5 Privacy layer | todo | | |
@@ -266,6 +266,8 @@ Not used: regex, dateparser, fhir.resources, sklearn-crfsuite, spaCy, splink. An
 ## 11. Running log
 - 2026-11-26 Phase 0: kit read, starter baseline: leak 84.1%, canaries 4/4, medical 100%, linking 0, CONTRACT OK. Plan approved.
 - 2026-11-26 Phase 1 (gate PASS): redact-all skeleton. CONTRACT OK; files 200 = 193 sanitized + 7 quarantined (3 unsupported_format, 1 invalid_encoding, 1 nesting_too_deep, 1 empty_file, 1 malformed_json); records 848 (truth units uncovered 0); canaries 0/4; raw copies 0; determinism IDENTICAL; secret grep clean; TMPDIR/HOME leftovers 0; wall <1 s, peak RSS 30 MB; pytest 29 passed. check_dev: leak 0.3% (9/3230, all PATIENT_NAME in filenames: filename channel 18.8%, Phase 2 fixes with the known-name dictionary); medical kept 617/4855 = 12.7% (expected, strings are redacted wholesale until Phase 2/3); linking 0 (patient=null everywhere, so a different secret cannot change output yet). Note: indic-transliteration pulls transitive deps (regex, typer, pydantic, rich, roman, toml); pinned top-level only.
+- 2026-11-26 Phase 2 (gate PASS): role-based detection replaces redact-all. CONTRACT OK; 193 sanitized + 7 quarantined, records 848 (uncovered 0); check_dev leak 0/3230 (0.0%; every type 0, every channel 0, latin/deva/hinglish 0); canaries 0/4; critical IDs by digit core with separators 0/572 (canary_scan digit match fixed to allow only 2 separator chars between digits); medical kept 4855/4855 (100%, every kind 100%); clean/ files equal to input; determinism IDENTICAL; secret grep clean; TMPDIR/HOME leftovers 0; wall 2 s, peak RSS 36 MB; pytest 76 passed. CAVEAT: dev leak is 0 largely because the known-name dictionary is harvested from structured columns on the same data. Names that appear only in prose (no structured record, no cue word) are NOT yet detected (Phase 3 engine), and generalisation is unmeasured until the Phase 6 stress set. DOB is year-only for now (Phase 5 does shifting); dates/ages are untouched until Phase 5.
+
 
 ## 12. Verification (end to end)
 ```bash

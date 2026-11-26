@@ -1,0 +1,6 @@
+# Spelling-variant groups of common name tokens (hand-written, generic). One group per line, '|' separated.
+mohammad|mohd|md|muhammad|mohamad|mohamed|mohammed|muhammed|mohmad
+ahmad|ahmed|ahamad
+hussain|hussein|husain|hasan
+shaikh|sheikh|shekh
+singh|sinha

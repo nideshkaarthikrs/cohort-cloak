@@ -18,8 +18,9 @@ from cloak.keys import Keys
 from cloak.log import RunLog
 from cloak.policy import load_policy
 from cloak.report import build_report, write_records, write_report
-from cloak.rewrite.apply import redact_csv_rows, redact_json, redact_text
+from cloak.detect.engine import Scrubber
 from cloak.rewrite.filenames import sanitize_paths
+from cloak.rewrite.structured import transform_csv, transform_json, transform_text
 
 ROOT = Path(__file__).resolve().parent.parent
 
@@ -30,27 +31,32 @@ def _excepthook(etype, _value, tb):
     sys.stderr.write(f"fatal {etype.__name__} at {' > '.join(frames[-6:])}\n")
 
 
-def _process(raw: bytes, ext: str, policy: dict):
-    """Return (output_bytes, locs, redaction_count). Raises on anything unprocessable."""
-    p = parse(raw, ext, int(policy["max_json_depth"]))
+def _render(p, scrubber):
+    """Return (output_bytes, redaction_count) for a parsed file."""
     if p.kind in ("json", "fhir"):
-        out, n = redact_json(p.data)
-        text = json.dumps(out, ensure_ascii=False, indent=2) + "\n"
-        return text.encode("utf-8"), json_locs(p.data, p.kind == "fhir"), n
+        out, n = transform_json(p.data, scrubber)
+        return (json.dumps(out, ensure_ascii=False, indent=2) + "\n").encode("utf-8"), n
     if p.kind == "csv":
         rows = csv_rows(p.text, p.delimiter)
         if not rows:
             raise Quarantine("empty_file")
-        header, body = rows[0], rows[1:]
-        nh, nb, n = redact_csv_rows(header, body)
+        nh, nb, n = transform_csv(rows[0], rows[1:], scrubber)
         buf = io.StringIO()
         w = csv.writer(buf, delimiter=p.delimiter, lineterminator="\n")
         w.writerow(nh)
         w.writerows(nb)
-        locs = [f"row:{i}" for i, r in enumerate(body) if any(c.strip() for c in r)]
-        return buf.getvalue().encode("utf-8"), locs, n
-    text, n = redact_text(p.text)
-    return text.encode("utf-8"), ["doc"], n
+        return buf.getvalue().encode("utf-8"), n
+    out, n = transform_text(p.text, scrubber)
+    return out.encode("utf-8"), n
+
+
+def _locs(p):
+    if p.kind in ("json", "fhir"):
+        return json_locs(p.data, p.kind == "fhir")
+    if p.kind == "csv":
+        rows = csv_rows(p.text, p.delimiter)
+        return [f"row:{i}" for i, r in enumerate(rows[1:]) if any(c.strip() for c in r)]
+    return ["doc"]
 
 
 def _list_files(inp: Path):
@@ -94,27 +100,44 @@ def main(argv=None) -> int:
     (out / "sanitized").mkdir(parents=True, exist_ok=True)
     log = RunLog(out / "logs" / "run.log")
 
-    results = []  # (rel, sha, output_bytes|None, locs, reason)
-    identifiers = 0
+    scrubber = Scrubber(policy)
+    # pass 1: read and parse everything, then learn names/IDs from every channel (output discarded)
+    items = []  # (rel, sha, parsed|None, reason)
     for path in _list_files(inp):
         rel = path.relative_to(inp).as_posix()
-        sha, data, locs, reason = "", None, [], None
+        sha, parsed, reason = "", None, None
         try:
             raw = path.read_bytes()
             sha = hashlib.sha256(raw).hexdigest()
-            data, locs, n = _process(raw, path.suffix, policy)
-            identifiers += n
+            parsed = parse(raw, path.suffix, int(policy["max_json_depth"]))
         except Exception as exc:  # noqa: BLE001 - global guard: quarantine, record the class only
-            reason, data, locs = reason_for(exc), None, []
+            reason = reason_for(exc)
             if not sha:
-                try:
-                    sha = hashlib.sha256(path.read_bytes()).hexdigest()
-                except OSError:
-                    sha = hashlib.sha256(b"").hexdigest()
-        results.append((rel, sha, data, locs, reason))
-        log.event("file_done", status="quarantined" if reason else "sanitized", records=len(locs))
+                sha = hashlib.sha256(b"").hexdigest()
+        items.append((rel, sha, parsed, reason))
+    for _rel, _sha, parsed, reason in items:
+        if parsed is not None:
+            try:
+                _render(parsed, scrubber)
+            except Exception:  # noqa: BLE001 - surfaced again (and quarantined) in pass 2
+                pass
+    scrubber.identifiers = 0
 
-    mapping = sanitize_paths([r[0] for r in results if r[2] is not None])
+    # pass 2: rewrite with the complete dictionaries
+    results = []  # (rel, sha, output_bytes|None, locs, reason)
+    for rel, sha, parsed, reason in items:
+        data, locs = None, []
+        if parsed is not None:
+            try:
+                data, n = _render(parsed, scrubber)
+                locs = _locs(parsed)
+            except Exception as exc:  # noqa: BLE001
+                reason, data, locs = reason_for(exc), None, []
+        results.append((rel, sha, data, locs, reason))
+        log.event("file_done", status="quarantined" if data is None else "sanitized", records=len(locs))
+    identifiers = scrubber.identifiers
+
+    mapping = sanitize_paths([r[0] for r in results if r[2] is not None], scrubber.names, scrubber.ids)
     files, records = [], []
     for rel, sha, data, locs, reason in results:
         if data is None:
