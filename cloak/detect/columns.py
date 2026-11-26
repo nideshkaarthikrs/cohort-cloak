@@ -78,7 +78,7 @@ def whole_cell_kind(cell: str):
     return None
 
 
-_ID_MIXED = re.compile(r"^(?=(?:.*\d){4})(?=.*[A-Za-z])[A-Za-z0-9][A-Za-z0-9/\-_.]{3,28}$")
+_ID_MIXED = re.compile(r"^(?=(?:.*\d){4})(?=.*[A-Za-z])[A-Za-z0-9][A-Za-z0-9/\-_.:]{3,28}$")
 _DATEISH = re.compile(r"^\d{1,4}[/\-.]\d{1,2}[/\-.]\d{1,4}$")
 
 

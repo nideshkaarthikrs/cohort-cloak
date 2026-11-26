@@ -23,10 +23,10 @@ def shape_regex(value: str):
         elif t.isdigit():
             parts.append(f"\\d{{{len(t)}}}")
         else:
-            parts.append(r"[\-/_ .]?")
+            parts.append(r"[\-/_ .:]?")
     src = "".join(parts)
     # collapse separator-optional neighbours into one
-    src = re.sub(r"(?:\[\\-/_ \.\]\?){2,}", r"[\\-/_ .]?", src)
+    src = re.sub(r"(?:\[\\-/_ \.:\]\?){2,}", r"[\\-/_ .:]?", src)
     if len(re.sub(r"\D", "", v)) < 5:
         return None  # too few digits: the shape would match ordinary words followed by a year
     has_letter = bool(re.search(r"[A-Za-z]", v))

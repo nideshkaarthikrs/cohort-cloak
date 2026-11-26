@@ -39,6 +39,10 @@ def _excepthook(etype, _value, tb):
 def _render(p, scrubber, locs=()):
     """Return (output_bytes, redaction_count) for a parsed file."""
     scrubber.rec = "doc"
+    if p.kind == "jsonl":
+        out, n = transform_json(p.data, scrubber, locs)
+        scrubber.rec = "doc"
+        return ("\n".join(json.dumps(x, ensure_ascii=False) for x in out) + "\n").encode("utf-8"), n
     if p.kind in ("json", "fhir"):
         out, n = transform_json(p.data, scrubber, locs)
         scrubber.rec = "doc"
@@ -68,7 +72,7 @@ _IDENTITY_EVENTS = ("patient_name", "name:subject", "mrn", "aadhaar", "abha", "h
 
 
 def _locs(p):
-    if p.kind in ("json", "fhir"):
+    if p.kind in ("json", "fhir", "jsonl"):
         return json_locs(p.data, p.kind == "fhir")
     if p.kind == "csv":
         rows = csv_rows(p.text, p.delimiter)

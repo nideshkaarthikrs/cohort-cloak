@@ -126,10 +126,23 @@ def transform_csv(header, body, scrubber, offset=0):
 
 # ----------------------------------------------------------------------------------- JSON
 class _Ctx:
-    __slots__ = ("role", "person", "relative", "ref")
+    __slots__ = ("role", "person", "relative", "ref", "prof")
 
-    def __init__(self, role=None, person=None, relative=False, ref=False):
-        self.role, self.person, self.relative, self.ref = role, person, relative, ref
+    def __init__(self, role=None, person=None, relative=False, ref=False, prof=None):
+        self.role, self.person, self.relative, self.ref, self.prof = role, person, relative, ref, prof
+
+
+def _row_profile(rows) -> dict:
+    """Roles for unknown keys of a list of records, from the values like CSV columns (names, IDs, phones...)."""
+    keys = sorted({k for r in rows for k in r if isinstance(k, str) and header_role(k)[0] is None})
+    prof = {}
+    for k in keys:
+        cells = [[r[k]] for r in rows if isinstance(r.get(k), str) and r[k].strip()]
+        if cells:
+            role = infer_roles([k], cells)[0]
+            if role in PII_ROLES:
+                prof[k] = role
+    return prof
 
 
 def _leaf_role(key, ctx: _Ctx):
@@ -191,6 +204,8 @@ def transform_json(data, scrubber, locs=()):
             return v
         scrubber.src = key or ""
         role = _leaf_role(key, ctx) if key is not None else (ctx.role if ctx.role else None)
+        if role is None and ctx.prof and key in ctx.prof:
+            role = ctx.prof[key]
         if isinstance(v, int) and role == "age" and scrubber.table is not None and 0 <= v <= 120:
             scrubber.emit("age", v)
             count[0] += 1
@@ -246,6 +261,11 @@ def transform_json(data, scrubber, locs=()):
 
     def _walk(v, key, ctx, path):
         if isinstance(v, list):
+            recs = [x for x in v if isinstance(x, dict)]
+            if len(recs) >= 2:
+                prof = _row_profile(recs)
+                if prof:
+                    ctx = _Ctx(ctx.role, ctx.person, ctx.relative, ctx.ref, prof)
             return [walk(x, key, ctx, path + (i,)) for i, x in enumerate(v)]
         if not isinstance(v, dict):
             return scalar(key, v, ctx)

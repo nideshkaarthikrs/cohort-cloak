@@ -14,7 +14,7 @@ _EXT_DELIM = {".csv": ",", ".tsv": "\t"}
 
 @dataclass
 class Parsed:
-    kind: str                 # csv | json | fhir | text
+    kind: str                 # csv | json | jsonl | fhir | text
     text: str
     delimiter: str = ""
     data: object = None
@@ -64,6 +64,8 @@ def sniff_delimiter(text: str, ext: str) -> str:
         counts = [len(r) for r in rows]
         if not counts or counts[0] < 2 or len(rows) < 3:
             continue
+        if any(c.count(" ") >= 5 for c in rows[0]):
+            continue  # a prose or key=value log line, not a header row
         mode = max(set(counts), key=counts.count)
         if mode >= 2 and counts.count(mode) / len(counts) >= 0.9 and counts[0] == mode:
             best = d
@@ -91,6 +93,15 @@ def parse(raw: bytes, ext: str, max_depth: int) -> Parsed:
         try:
             data = json.loads(body)
         except (ValueError, RecursionError):
+            lines = [l for l in body.splitlines() if l.strip()]
+            recs = []
+            if body[0] == "{" and len(lines) >= 2:
+                try:
+                    recs = [json.loads(l) for l in lines]
+                except (ValueError, RecursionError):
+                    recs = []
+            if recs and all(isinstance(r, dict) for r in recs):
+                return Parsed("jsonl", text, data=recs)
             if body[0] == "{" or ext == ".json":
                 raise Quarantine("malformed_json")
             data = None  # '[' text such as a chat export

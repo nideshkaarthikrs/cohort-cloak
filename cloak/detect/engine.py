@@ -7,7 +7,8 @@ from cloak.detect.columns import header_role
 from cloak.detect.context import cue_name_spans_typed
 from cloak.detect.guards import guard_spans, guarded, overlaps_guard
 from cloak.detect.ids import IdSet
-from cloak.detect.names import Gazetteer, NameDict, merge_spans
+from cloak.detect.lexicon import medical_words, words as words_of
+from cloak.detect.names import Gazetteer, NameDict, is_non_name, iter_words, merge_spans
 from cloak.detect.normalize import map_span, normalize
 from cloak.detect.payloads import ENCODINGS
 from cloak.detect.patterns import find_hard
@@ -41,11 +42,15 @@ def dob_year(value: str) -> str:
     return m.group(1) if m else "[DOB]"
 
 
+_TOKEN_ROLES = frozenset({"phone", "aadhaar", "abha", "pan", "insurance", "mrn", "email", "pin", "dob"})
+
+
 class Scrubber:
     def __init__(self, policy: dict):
         self.policy = policy
         self.names = NameDict()
         self.ids = IdSet()
+        self.places = {}        # learned village names: casefolded first word -> set of full casefolded phrases
         self.identifiers = 0
         self.stats = Counter()
         # Phase 4: event sink (per-record evidence) and PSN placement table, active only in the final render
@@ -97,6 +102,10 @@ class Scrubber:
             self.ids.add(v)
         elif role == "phone":
             self.ids.add(v, shape=False)
+        elif role == "village":
+            words = [w.casefold() for _s, _e, w in iter_words(v)]
+            if words and len(" ".join(words)) >= 4 and not (set(words) & (medical_words() | words_of("hinglish_stopwords.txt"))):
+                self.places.setdefault(words[0], set()).add(" ".join(words))
 
     @staticmethod
     def _strip_relation(v: str) -> str:
@@ -141,6 +150,8 @@ class Scrubber:
             self.stats[ROLE_PLACEHOLDER[role]] += 1
             return ROLE_PLACEHOLDER[role], 1
         if role in ("village", "house", "locality", "landmark"):
+            if role == "village":
+                self.learn(role, value)
             self.identifiers += 1
             self.stats[ROLE_PLACEHOLDER[role]] += 1
             return ROLE_PLACEHOLDER[role], 1
@@ -211,8 +222,17 @@ class Scrubber:
                 names.append((s, e))
                 if kind in ("subject", "rel"):
                     self.emit("name:" + kind, shadow[s:e])
+        fixed += self._pin_spans(shadow, guards)
+        fixed += self._place_spans(shadow, guards)
         names += self.names.find(shadow, guards)
         names += Gazetteer.runs(shadow, guards)
+        names = [(s, e) for s, e in merge_spans(names, shadow)]
+        for s, e in list(names):  # "Surname, Given Names": the surname before the comma goes too
+            m = re.search(r"([A-Z][A-Za-z']{2,}),[ \t]*$", shadow[max(0, s - 40):s])
+            if m and not is_non_name(m.group(1)) and m.group(1).casefold() not in medical_words():
+                a = s - (len(shadow[max(0, s - 40):s]) - m.start(1))
+                if not overlaps_guard(guards, a, a + len(m.group(1))):
+                    names.append((a, a + len(m.group(1))))
         names = [(s, e) for s, e in merge_spans(names, shadow)]
         spans = list(fixed)
         for s, e in names:
@@ -223,10 +243,10 @@ class Scrubber:
         for s, e, ph in spans:
             a, b = map_span(offs, s, e, len(text))
             if isinstance(ph, tuple):  # generalisation resolved after clustering
-                kind, payload = ph
+                kind, payload, *fb = ph
                 if self.table is None:
                     continue
-                ph = self.sentinel(kind, text[a:b], payload)
+                ph = self.sentinel(kind, fb[0] if fb else text[a:b], payload)
             mapped.append((a, b, ph))
         for a, b, ph in reversed(sorted(mapped)):
             text = text[:a] + ph + text[b:]
@@ -265,6 +285,59 @@ class Scrubber:
         if self.table is None:
             return encode(inner)
         return self.sentinel("enc", "", (encode, inner))
+
+    _PIN_LABELLED = re.compile(r"(?<![\w])(?:pin(?:\s*code)?|postal\s*code|zip|पिन(?:\s*कोड)?)\s*[:=#\-]?\s*([1-9]\d{5})(?!\d)", re.I)
+    _PIN_AFTER_PLACE = re.compile(r"(?<![\w])([A-Z][A-Za-z]{3,})(?:[ \t]*[/,;:\-(]+[ \t]*|[ \t]+)([1-8]\d{5})(?!\d)")
+    _VILLAGE_CUE = re.compile(r"(?<![\w])(?i:village|vill|gaon|gaanv|gram|ghar|nivasi|niwasi|r/o|resident\s+of|native\s+of)\.?[ \t:,\-]+"
+                              r"([A-Z][a-z]{3,}(?:[ \t]+[A-Z][a-z]{3,})?)|(?:गाँव|गांव|ग्राम|निवासी)[ \t:,\-]+([ऀ-ॿ]{3,})")
+
+    def _pin_spans(self, shadow: str, guards) -> list:
+        """6-digit PIN codes in prose: labelled, or right after a capitalised place word. Never lab values."""
+        blocked = [(a, b) for a, b, k in guards if k in ("frequency", "vital", "range", "dose", "loinc", "doctor")]
+        out = []
+        for rx, grp in ((self._PIN_LABELLED, 1), (self._PIN_AFTER_PLACE, 2)):
+            for m in rx.finditer(shadow):
+                s, e = m.start(grp), m.end(grp)
+                if rx is self._PIN_AFTER_PLACE:
+                    w = m.group(1)
+                    if w.casefold() in medical_words() or is_non_name(w):
+                        continue
+                if any(s < b and a < e for a, b in blocked):
+                    continue
+                d = shadow[s:e]
+                fb = d[:3] + "***" if self.policy.get("pin_mode", "prefix3") == "prefix3" else "[PIN]"
+                out.append((s, e, ("pin", d, fb)))
+        return out
+
+    def _place_spans(self, shadow: str, guards) -> list:
+        """Villages learned from structured fields, wherever they appear in prose."""
+        mode = self.policy.get("village_mode")
+        ph = ("village", mode, "[VILLAGE]") if mode in ("tehsil", "district") else "[VILLAGE]"
+        out = []
+        for m in self._VILLAGE_CUE.finditer(shadow):
+            g = 1 if m.group(1) else 2
+            w = m.group(g)
+            first = w.split()[0]
+            if (first.casefold() in medical_words() or first.casefold() in words_of("hinglish_stopwords.txt")
+                    or is_non_name(first) or overlaps_guard(guards, m.start(g), m.end(g))):
+                continue
+            out.append((m.start(g), m.end(g), ph))
+        if not self.places:
+            return out
+        words = list(iter_words(shadow))
+        for i, (s, e, w) in enumerate(words):
+            phrases = self.places.get(w.casefold())
+            if not phrases or overlaps_guard(guards, s, e):
+                continue
+            best = None
+            for ph in sorted(phrases, key=len, reverse=True):
+                n = ph.count(" ") + 1
+                if i + n <= len(words) and " ".join(x[2].casefold() for x in words[i:i + n]) == ph:
+                    best = (words[i][0], words[i + n - 1][1])
+                    break
+            if best:
+                out.append((best[0], best[1], ("village", mode, "[VILLAGE]") if mode in ("tehsil", "district") else "[VILLAGE]"))
+        return out
 
     def _privacy_spans(self, shadow: str, guards, hard) -> list:
         """Dates, ages and ICD codes (with their display text) as generalisation spans."""
@@ -350,9 +423,18 @@ class Scrubber:
                 total += n
                 pos = vend
                 continue
-            new, n = self.scrub_value(role, value.rstrip())
-            pieces.append(new + trail)
+            body, rest = value.rstrip(), ""
+            if role in _TOKEN_ROLES:  # a number or ID: anything after a wide gap is separate text, scan it on its own
+                parts = re.split(r"(\s{2,})", body.lstrip(), maxsplit=1)
+                if len(parts) == 3:
+                    lead = body[:len(body) - len(body.lstrip())]
+                    body, rest = lead + parts[0], parts[1] + parts[2]
+            new, n = self.scrub_value(role, body)
             total += n
+            if rest:
+                tail, k = self._scrub_plain(rest)
+                new, total = new + tail, total + k
+            pieces.append(new + trail)
             pos = vend
         if pos < len(line):
             tail, n = self._scrub_plain(line[pos:])
