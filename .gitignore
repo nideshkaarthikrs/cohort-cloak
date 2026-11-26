@@ -1,0 +1,16 @@
+# hackathon source doc (kept locally, not published)
+*.docx
+# environments / caches
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+# run outputs
+out*/
+my_output*/
+stress/out*/
+*.log
+# never commit the kit or its data
+Secret-Wards-ToolKit/
+kit/
+.DS_Store
