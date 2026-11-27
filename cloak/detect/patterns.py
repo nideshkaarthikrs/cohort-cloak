@@ -29,6 +29,11 @@ _ID_LABELS = (
     r"ip\s*(?:no|number|#)", r"adm(?:ission)?\s*(?:no|number|#|id)", r"patient\s*(?:id|no|number|#)", r"pt\.?\s*id",
     r"case\s*(?:no|number)", r"file\s*(?:no|number)", r"op\s*(?:no|number|d\s*no)", r"cr\s*no",
     r"पंजीकरण\s*(?:सं\.?|संख्या|नं\.?|नंबर)", r"आईपीडी\s*(?:सं\.?|संख्या|नं\.?)", r"रोगी\s*(?:आईडी|संख्या)",
+    # insurance, scheme and card numbers; Hindi forms of registration and admission numbers
+    r"pm\s*-?\s*jay(?:\s*(?:id|no|number|card))?", r"ayushman(?:\s*(?:bharat|card|id))?(?:\s*(?:no|number|id))?",
+    r"beneficiary\s*(?:id|no|number)", r"insurance\s*(?:id|no|number)", r"policy\s*(?:id|no|number)", r"member\s*(?:id|no|number)",
+    r"आयुष्मान\s*(?:कार्ड|आई\.?\s*डी\.?|आईडी|संख्या|नंबर|नं\.?)", r"बीमा\s*(?:आई\.?\s*डी\.?|आईडी|संख्या|नंबर|नं\.?)",
+    r"पंजीयन\s*(?:सं\.?|संख्या|क्र\.?|नं\.?|नंबर)", r"भर्ती\s*(?:सं\.?|संख्या|क्र\.?|नं\.?|नंबर)",
 )
 _ID_LABEL_RX = re.compile(
     r"(?<![\w])(?:" + "|".join(_ID_LABELS) + r")\s*[:#\-]?\s*([A-Za-z0-9ऀ-ॿ][^\s,;|\"'<>\[\]]{3,})", re.I)

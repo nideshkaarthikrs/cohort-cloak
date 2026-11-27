@@ -15,7 +15,7 @@ _RELATION = re.compile(_REL_MARK + r"\s*[:\-]?\s*(" + _NAMERUN + ")")
 _RELATION_LOWER = re.compile(_REL_MARK + r"\s*[:\-]?\s*(" + _LOWER_TOK + ")")
 _CARE_OF = re.compile(r"(?<![A-Za-z/])(?:C/O|C/o)\s*[:\-]?\s*(" + _NAMERUN + ")")
 _HONORIFIC_PRE = re.compile(r"\b(?:Shri|Smt|Mr|Mrs|Ms|Km|Late|Master|Pt)\.?\s+(" + _NAMERUN + ")")
-_HONORIFIC_POST = re.compile(r"((?:" + _LATIN_TOK + r"\s+){0,2}[A-Z][a-z]{2,})\s+(?i:ji|sahab|sahib|saheb|saab|bhai|bhaiya|didi|amma|behenji|behen|babu|mam|madam|sir)\b")
+_HONORIFIC_POST = re.compile(r"((?:" + _LATIN_TOK + r"\s+){0,2}[A-Z][a-z]{2,})\s+(?i:ji|sahab|sahib|saheb|saab|bhai|bhaiya|didi|amma|behenji|behen|babu|mam|madam|sir|aunty|auntie|uncle|dada|dadi|nana|nani|chacha|chachi|bhabhi|bhabi|mausi|mami|bua)\b")
 _CUE_WORDS = (r"called\s+by|raised\s+by|witnessed\s+by|informed\s+by|reported\s+by|visitor|attendant|guardian|caller|"
               r"contact\s+person|brought\s+by|next\s+of\s+kin|patient\s+name|pt\s+name|name\s+of\s+patient|report\s+of|"
               r"collected\s+from|sample\s+received\s+from|received\s+from|spoke\s+to|spoke\s+with|meeting\s+with|handed\s+over\s+to|"

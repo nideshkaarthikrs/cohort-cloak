@@ -48,7 +48,7 @@ _DEVA_AFTER = re.compile(r"[ \t]+([ऀ-ॣॱ-ൿء-ٟٱ-ۓ]{3,})(?![ऀ-ൿء-�
 _DEVA_BEFORE = re.compile(r"([ऀ-ॣॱ-ൿء-ٟٱ-ۓ]{3,})[ \t]+\Z")
 _GENERIC_ID = re.compile(r"(?<![A-Za-z0-9])([A-Z]{2,5})[/~@.\-_:#{}\\]{1,2}\d{2,6}(?:[/~@.\-_:#{}\\]{1,2}[A-Za-z0-9]{1,6}){1,3}(?![A-Za-z0-9])")
 _B64_TOKEN = re.compile(r"(?<![A-Za-z0-9+/])[A-Za-z0-9+/]{8,}={0,2}(?![A-Za-z0-9+/=])")
-_TOKEN_ROLES = frozenset({"phone", "aadhaar", "abha", "pan", "insurance", "mrn", "email", "pin", "dob"})
+_TOKEN_ROLES = frozenset({"phone", "aadhaar", "abha", "pan", "insurance", "mrn", "email", "pin", "dob", "age", "age_sex"})
 
 
 class Scrubber:
@@ -230,7 +230,7 @@ class Scrubber:
             self.emit("id:known", shadow[s:e])
         names = []
         for s, e, kind in cue_name_spans_typed(shadow, phone_spans, self.names):
-            if not overlaps_guard([g for g in guards if g[2] in ("doctor", "history", "ward", "hospital")], s, e):
+            if not overlaps_guard([g for g in guards if g[2] in ("doctor", "history", "ward", "hospital", "drug")], s, e):
                 names.append((s, e))
                 if kind in ("subject", "rel", "chat"):
                     if kind != "chat":
@@ -536,7 +536,7 @@ class Scrubber:
             vstart = m.end()
             vend = marks[i + 1].start() if i + 1 < len(marks) else len(line)
             self.src = label
-            if role is None and ("/" in label or "." in label):
+            if role is None and ("/" in label or "." in label) and len(label.split()) <= 3:
                 # compound labels such as "Pt. Name/Age": try each part
                 for part in re.split(r"[/.]", label):
                     role, _ = header_role(part)

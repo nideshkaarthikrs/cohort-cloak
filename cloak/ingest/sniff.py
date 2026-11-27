@@ -62,14 +62,14 @@ def sniff_delimiter(text: str, ext: str) -> str:
         except csv.Error:
             continue
         counts = [len(r) for r in rows]
-        if not counts or counts[0] < 2 or len(rows) < 3:
-            continue
+        if not counts or counts[0] < 2 or len(rows) < 2 or (len(rows) == 2 and (counts[0] < 3 or counts[0] != counts[1])):
+            continue  # two rows are enough for a one-record export when both have the same 3+ columns
         mode = max(set(counts), key=counts.count)
         if mode < 2:
             continue
         lead = counts.index(mode)  # a few title rows may sit above the header row
         tail = counts[lead:]
-        if lead > 6 or len(tail) < 3 or tail.count(mode) / len(tail) < 0.9:
+        if lead > 6 or len(tail) < min(3, len(rows)) or tail.count(mode) / len(tail) < 0.9:
             continue
         if lead and not all(1 <= c <= mode for c in counts[:lead]):
             continue

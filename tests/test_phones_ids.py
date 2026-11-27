@@ -121,3 +121,13 @@ def test_ten_digits_after_a_phone_label_are_a_phone_whatever_the_first_digit():
         assert [s.kind for s in find_hard(t)] == ["PHONE"], t
     for t in ("Lot no 5551803410", "Dose 5551803410", "Ref 55518 03410", "Bill 5551803410 paid"):
         assert find_hard(t) == [], t
+
+
+def test_insurance_and_card_labels_in_hindi_and_english_anchor_an_id():
+    for t in ("आयुष्मान कार्ड: K7R2M94PX", "आयुष्मान आई.डी.: W2F6K9N3D", "आयुष्मान आईडी K7R2M94PX",
+              "PM-JAY : M3T8K5Q2W", "PMJAY ID: M3T8K5Q2W", "Ayushman Card No: K7R2M94PX", "Beneficiary ID K7R2M94PX",
+              "Insurance No: K7R2M94PX", "Policy No: K7R2M94PX", "Member ID: K7R2M94PX", "बीमा आईडी: K7R2M94PX",
+              "पंजीयन क्र. CHC3471X", "भर्ती क्र.: IPD24X1187"):
+        assert [s.kind for s in find_hard(t)] == ["ID"], t
+    for t in ("आयुष्मान योजना में भर्ती", "Insurance covered the stay", "Policy review done", "card given to patient"):
+        assert find_hard(t) == [], t

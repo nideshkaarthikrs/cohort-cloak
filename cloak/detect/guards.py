@@ -19,6 +19,11 @@ _HIST_TAIL = r"(?:\s+(?:[a-z][\w'\-]*|\d+\s?(?:yrs?|years?|days?|months?)[\w ]*|
 _HIST = re.compile(r"(?:K/C/O|H/O)\s+((?:[a-z][\w'\-]*|[A-Z]{2,4}|[A-Z][a-z]+'s)" + _HIST_TAIL + ")")
 _COMPLAINT = re.compile(r"(?<![A-Za-z/])C/O\s+([a-z][\w'\-]*" + _HIST_TAIL + ")")
 _ASHA = re.compile(r"\bASHA\s+(?:worker|didi|sevika)\b|\bASHA\b(?=\s+(?:[a-z]|$))")
+_DRUG_FORM = re.compile(
+    r"(?<![A-Za-z])(?:Tab|Tabs|Tablet|Cap|Caps|Capsule|Inj|Injection|Syp|Syrup|Susp|Oint|Ointment|Drops?|Gel|Cream|Inh|Neb|Rx)\.?\s+"
+    r"([A-Z][\w'\-]*(?:\s+[A-Z][\w'\-]*){0,2})")
+_DRUG_DOSE = re.compile(
+    r"(?<![A-Za-z])([A-Z][a-z][\w'\-]*(?:\s+[A-Z][a-z][\w'\-]*){0,2})(?=\s+(?:\d+(?:\.\d+)?\s?(?:mg|mcg|µg|g|gm|ml|iu|units?)\b|\d(?:\.\d)?-\d(?:\.\d)?-\d(?:\.\d)?))", )
 _CLINICAL_KW = re.compile(r"\b(?:fever|cough|headache|giddiness|weakness|vomiting|pain|diabetes|hypertension|tb|asthma)\b", re.I)
 
 
@@ -37,6 +42,9 @@ def guard_spans(text: str) -> list:
     for rx in (_HIST, _COMPLAINT):
         for m in rx.finditer(text):
             spans.append((m.start(1), m.end(1), "history"))
+    for rx in (_DRUG_FORM, _DRUG_DOSE):
+        for m in rx.finditer(text):
+            spans.append((m.start(1), m.end(1), "drug"))
     return spans
 
 

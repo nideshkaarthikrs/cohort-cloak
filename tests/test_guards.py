@@ -38,3 +38,19 @@ def test_history_and_complaint_prefixes():
 
 def test_asha_worker_protected():
     assert covered("ASHA worker visited", "ASHA worker")
+
+
+def test_unknown_brand_drug_names_after_a_dosage_form_or_before_a_dose_are_kept():
+    from cloak.detect.engine import Scrubber
+    from cloak.policy import load_policy
+    from pathlib import Path
+    sc = Scrubber(load_policy(Path("config/policy.yaml")))
+    for t in ("Plan:\n  1. Inj Human Actrapid 4 units before lunch",
+              "  Tab Syndopa Plus 1-1-1 (Levodopa 100 mg), 30 min before meals",
+              "insulin khud laga rahi hain - Mixtard 18-0-12 daily",
+              "Syp Zorbexal Forte 5 ml TDS",
+              "Inj. Carboprost 250 mcg IM",
+              "Cap Vorlanex Duo 1-0-1"):
+        assert sc.scrub_text(t, doc_labels=True)[0] == t, t
+    out = sc.scrub_text("Patient Zorbak Quillfeather was given Tab Metformin 500 mg", doc_labels=True)[0]
+    assert "Quillfeather" not in out and "Tab Metformin 500 mg" in out

@@ -107,8 +107,9 @@ def transform_csv(header, body, scrubber, offset=0):
     for ri, row in enumerate(body):
         scrubber.rec = f"row:{ri + offset}"
         out = []
+        ragged = len(row) != len(header) and any(c.strip() for c in row)  # a shifted row: column positions no longer mean anything
         for j, cell in enumerate(row):
-            role = roles[j] if j < len(roles) else None
+            role = None if ragged else (roles[j] if j < len(roles) else None)
             scrubber.src = f"c{j}"
             if not cell.strip():
                 out.append(cell)

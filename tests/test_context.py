@@ -172,3 +172,17 @@ def test_a_whatsapp_sender_is_learned_as_a_name_for_other_texts():
     sc.scrub_text("06/11/2026, 07:11 - Quillfeather: hello sir, my son is unwell\n", doc_labels=True)
     out, _ = sc.scrub_text("the visit with quillfeather went well, said Quillfeather.", doc_labels=True)
     assert "uillfeather" not in out
+
+
+def test_text_after_an_age_field_on_the_same_line_is_still_scanned():
+    out = scrub("Naam: Ganga Ram Lodhi     Umar: 49     S/o Harprasad Lodhi\nGaon: Dhanora Kalan", doc=True)
+    assert "Harprasad" not in out
+    out = scrub("Age/Sex  : 55 / F        W/o S. Venkatesan         Mobile: 70004 18293", doc=True)
+    assert "Venkatesan" not in out and "70004" not in out
+
+
+def test_a_family_title_after_a_name_marks_the_name():
+    for t, name in (("Quillfeather aunty ka ghaav saaf hai", "Quillfeather"), ("Zorbak uncle ko bukhar hai", "Zorbak"),
+                    ("Vanthorp chacha ki dawai li", "Vanthorp"), ("Mireli bhabhi ne bataya", "Mireli")):
+        assert name not in scrub(t), t
+    assert scrub("The uncle of the patient came.") == "The uncle of the patient came."

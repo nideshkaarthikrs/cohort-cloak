@@ -297,3 +297,20 @@ def test_padded_pipe_table_with_a_long_header_cell_is_still_a_table(tmp_path):
     out = run(tmp_path, {"bills.psv": t})["bills.psv"]
     assert "QUILLFEATHER" not in out and "VANTHORP" not in out
     assert "Consultation" in out and "CBC + SGOT" in out
+
+
+def test_a_row_with_an_extra_empty_cell_is_scanned_by_content_not_by_column_position(tmp_path):
+    t = ("No\tPatient\tFather or husband\tAge\tVillage\tMobile\n"
+         "1\tZorbak Quillfeather\tShri Marvok Quillfeather\t40\tDhanora\t9876501234\n"
+         "2\tMireli Vanthorp\t\tShri Lakhan Vanthorp\t59\tPipariya\t9876501235\n"
+         "3\tTerin Holbrook\tShri Garad Holbrook\t33\tKanthpura\t9876501236\n")
+    out = run(tmp_path, {"reg.tsv": t})["reg.tsv"]
+    for leaked in ("Lakhan", "Vanthorp", "9876501235", "Marvok", "Garad"):
+        assert leaked not in out, leaked
+
+
+def test_one_record_semicolon_file_with_commas_in_a_cell_is_a_table(tmp_path):
+    t = "Applicant;UHID;Telephone;Address;Result\nZorbak Quillfeather;26/VM/4829;0 55518 03999;30, Mill Cross, Kesaruli Pada;TSH 9.8\n"
+    out = run(tmp_path, {"one.csv": t})["one.csv"]
+    assert "Quillfeather" not in out and "55518" not in out and "Mill Cross" not in out
+    assert out.count(";") == 8
