@@ -81,9 +81,9 @@ tehsil to district, PIN 3-digit prefix, 5-year bands, `k_min` 5, rare threshold 
 | personal data leaked (all languages and channels) | 0 of 3230 |
 | medical values kept | 94.3% (rare diagnoses, procedures and package codes are generalised on purpose) |
 | linking precision / recall / F0.5, wrong merges | 1.000 / 1.000 / 1.000, 0 (0 of 48 patients split) |
-| own attack simulation vs raw: A3 / A4 / A5 | 4.4% / 2.1% / 48.3% |
+| own attack simulation vs raw: A3 / A4 / A5 | 3.9% / 0.0% / 48.3% |
 | intervals exact, ages truthful | 99.5%, 350/350 |
-| run time / peak memory | about 1 s / 52 MB (10x data: scaling exponent 0.89) |
+| run time / peak memory | about 1.4 s / 55 MB (10x data: scaling exponent about 0.8) |
 
 ## Security
 
