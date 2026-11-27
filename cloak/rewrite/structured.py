@@ -199,14 +199,25 @@ def transform_json(data, scrubber, locs=()):
     count = [0]
     loc_set = set(locs) - {"doc"}
     scrubber.rec = "doc"
+    if isinstance(data, dict) and data.get("resourceType") == "Bundle":
+        patients = [e.get("resource") for e in data.get("entry", [])
+                    if isinstance(e, dict) and isinstance(e.get("resource"), dict)
+                    and e["resource"].get("resourceType") == "Patient"]
+        if len(patients) > 1:
+            scrubber.emit("multi_patient_unit", "1")
 
     def scalar(key, v, ctx):
-        if isinstance(v, bool) or v is None or isinstance(v, float):
+        if isinstance(v, bool) or v is None:
             return v
         scrubber.src = key or ""
         role = _leaf_role(key, ctx) if key is not None else (ctx.role if ctx.role else None)
         if role is None and ctx.prof and key in ctx.prof:
             role = ctx.prof[key]
+        if isinstance(v, (int, float)) and role == "age" and (not isinstance(v, int) or not 0 <= v <= 120):
+            count[0] += 1
+            return "[AGE]"
+        if isinstance(v, float):
+            return v
         if isinstance(v, int) and role == "age" and scrubber.table is not None and 0 <= v <= 120:
             scrubber.emit("age", v)
             count[0] += 1

@@ -40,6 +40,8 @@ def resolve(table: list, unit_psn: dict, plan):
                 else:
                     repl[i] = None if kind == "append" else fallback
                 continue
+            if kind == "date":
+                payload = plan.date_values.get(i, payload)
             repl[i] = _generalise(kind, fallback, payload, key, plan)
             if repl[i] != fallback:
                 touched.add(key)

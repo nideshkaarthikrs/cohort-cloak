@@ -1,18 +1,18 @@
-# Operating point chosen by tools/sweep.py (proxy 25*(1-risk)*min(1,U/0.4) + 20*U); see README and tools/sweep_results.md
+# Selected by the follow-up comparison with two independent privacy probes.
+age_band_years: 20
+age_top_code: 75
 date_shift_max_days: 180
-age_band_years: 5
-age_top_code: 85
-dob_mode: redact         # shift | year | redact
-village_mode: redact     # tehsil | district | redact
-tehsil_mode: district    # keep | district
-pin_mode: prefix3        # prefix3 | redact
-rare_dx_max_patients: 8   # cap; the threshold is clamp(floor(rare_dx_fraction * patients), rare_dx_floor, cap)
-rare_dx_fraction: 0.05
-rare_dx_floor: 3         # the attacker weights conditions shared by <= 3 profiles x8, so never go below it
-k_min: 5
+dob_mode: redact
 k_max_level: 3
+k_min: 3
 link_threshold: 10
-soft_link_margin: 3
-name_confidence_threshold: 0.6
 max_json_depth: 200
-rare_proc_mode: generalise   # rare procedures / package codes -> family / specialty prefix; "keep" leaves them (costs ~0.4 pt less medical kept on dev)
+name_confidence_threshold: 0.6
+pin_mode: prefix3
+rare_dx_floor: 3
+rare_dx_fraction: 0.05
+rare_dx_max_patients: 8
+rare_proc_mode: keep
+soft_link_margin: 3
+tehsil_mode: district
+village_mode: redact

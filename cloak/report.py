@@ -5,14 +5,22 @@ from pathlib import Path
 
 
 def peak_rss_mb() -> float:
-    try:
-        import resource
-        own = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
-        kids = resource.getrusage(resource.RUSAGE_CHILDREN).ru_maxrss
-        total = own + kids
-        return round(total / (1048576 if sys.platform == "darwin" else 1024), 1)
-    except Exception:  # noqa: BLE001 - resource is unavailable on some platforms
-        return 0.0
+    """Peak resident memory of this process, in MiB (not a sum of unrelated peaks)."""
+    if sys.platform == "win32":
+        import ctypes
+        from ctypes import wintypes
+        class Memory(ctypes.Structure):
+            _fields_ = [("cb", wintypes.DWORD), ("PageFaultCount", wintypes.DWORD)] + [
+                (n, ctypes.c_size_t) for n in ("PeakWorkingSetSize", "WorkingSetSize", "QuotaPeakPagedPoolUsage",
+                "QuotaPagedPoolUsage", "QuotaPeakNonPagedPoolUsage", "QuotaNonPagedPoolUsage", "PagefileUsage", "PeakPagefileUsage")]
+        memory = Memory()
+        memory.cb = ctypes.sizeof(memory)
+        if not ctypes.WinDLL("psapi", use_last_error=True).GetProcessMemoryInfo(ctypes.c_void_p(-1), ctypes.byref(memory), memory.cb):
+            raise ctypes.WinError(ctypes.get_last_error())
+        return round(memory.PeakWorkingSetSize / 1048576, 1)
+    import resource
+    own = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
+    return round(own / (1048576 if sys.platform == "darwin" else 1024), 1)
 
 
 def write_records(path: Path, records: list) -> None:

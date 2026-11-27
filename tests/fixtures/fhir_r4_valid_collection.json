@@ -1,0 +1,186 @@
+{
+  "resourceType": "Bundle",
+  "type": "collection",
+  "entry": [
+    {
+      "fullUrl": "urn:uuid:9e986c0b-501d-5e91-8771-cc97c20b071f",
+      "resource": {
+        "resourceType": "Patient",
+        "id": "9e986c0b-501d-5e91-8771-cc97c20b071f",
+        "identifier": [
+          {
+            "system": "urn:synthetic:hospital-record",
+            "value": "WQ-47-91027"
+          }
+        ],
+        "name": [
+          {
+            "text": "Keralin Vashmoli",
+            "family": "Vashmoli",
+            "given": [
+              "Keralin"
+            ]
+          }
+        ],
+        "telecom": [
+          {
+            "system": "phone",
+            "value": "7890112233"
+          }
+        ],
+        "gender": "female",
+        "birthDate": "1990-04-05"
+      }
+    },
+    {
+      "fullUrl": "urn:uuid:ba896986-cbb4-55cd-a9a0-f95b23ad0d34",
+      "resource": {
+        "resourceType": "Practitioner",
+        "id": "ba896986-cbb4-55cd-a9a0-f95b23ad0d34",
+        "name": [
+          {
+            "text": "Dr. Niranjali Devtril"
+          }
+        ]
+      }
+    },
+    {
+      "fullUrl": "urn:uuid:87c06620-7641-55c2-9979-b9782200aa90",
+      "resource": {
+        "resourceType": "Organization",
+        "id": "87c06620-7641-55c2-9979-b9782200aa90",
+        "name": "Zephira Medical Institute"
+      }
+    },
+    {
+      "fullUrl": "urn:uuid:9f1ba72c-7852-5baa-876d-732b64afd8ad",
+      "resource": {
+        "resourceType": "Encounter",
+        "id": "9f1ba72c-7852-5baa-876d-732b64afd8ad",
+        "status": "finished",
+        "class": {
+          "system": "http://terminology.hl7.org/CodeSystem/v3-ActCode",
+          "code": "IMP"
+        },
+        "subject": {
+          "reference": "urn:uuid:9e986c0b-501d-5e91-8771-cc97c20b071f"
+        },
+        "period": {
+          "start": "2026-03-12T09:00:00+05:30",
+          "end": "2026-03-16T14:00:00+05:30"
+        },
+        "serviceProvider": {
+          "reference": "urn:uuid:87c06620-7641-55c2-9979-b9782200aa90"
+        }
+      }
+    },
+    {
+      "fullUrl": "urn:uuid:0ce5d523-7584-5751-b7a5-acfa2610f709",
+      "resource": {
+        "resourceType": "Condition",
+        "id": "0ce5d523-7584-5751-b7a5-acfa2610f709",
+        "clinicalStatus": {
+          "coding": [
+            {
+              "system": "http://terminology.hl7.org/CodeSystem/condition-clinical",
+              "code": "active"
+            }
+          ]
+        },
+        "subject": {
+          "reference": "urn:uuid:9e986c0b-501d-5e91-8771-cc97c20b071f"
+        },
+        "code": {
+          "text": "Essential hypertension"
+        }
+      }
+    },
+    {
+      "fullUrl": "urn:uuid:20bdc697-6252-545c-9856-fe9171e73d64",
+      "resource": {
+        "resourceType": "Observation",
+        "id": "20bdc697-6252-545c-9856-fe9171e73d64",
+        "status": "final",
+        "subject": {
+          "reference": "urn:uuid:9e986c0b-501d-5e91-8771-cc97c20b071f"
+        },
+        "category": [
+          {
+            "coding": [
+              {
+                "system": "http://terminology.hl7.org/CodeSystem/observation-category",
+                "code": "laboratory"
+              }
+            ]
+          }
+        ],
+        "code": {
+          "text": "Hemoglobin"
+        },
+        "valueQuantity": {
+          "value": 12.5,
+          "unit": "g/dL",
+          "system": "http://unitsofmeasure.org",
+          "code": "g/dL"
+        }
+      }
+    },
+    {
+      "fullUrl": "urn:uuid:99df47df-eb2b-5ca2-a8f9-422710159750",
+      "resource": {
+        "resourceType": "MedicationRequest",
+        "id": "99df47df-eb2b-5ca2-a8f9-422710159750",
+        "status": "active",
+        "intent": "order",
+        "subject": {
+          "reference": "urn:uuid:9e986c0b-501d-5e91-8771-cc97c20b071f"
+        },
+        "medicationCodeableConcept": {
+          "text": "Metformin 500 mg"
+        },
+        "requester": {
+          "reference": "urn:uuid:ba896986-cbb4-55cd-a9a0-f95b23ad0d34"
+        },
+        "dosageInstruction": [
+          {
+            "text": "500 mg twice daily"
+          }
+        ]
+      }
+    },
+    {
+      "fullUrl": "urn:uuid:5e0044b1-ea23-5d42-9ece-2e90da8b61d4",
+      "resource": {
+        "resourceType": "Procedure",
+        "id": "5e0044b1-ea23-5d42-9ece-2e90da8b61d4",
+        "status": "completed",
+        "subject": {
+          "reference": "urn:uuid:9e986c0b-501d-5e91-8771-cc97c20b071f"
+        },
+        "code": {
+          "text": "Wound dressing"
+        },
+        "performedDateTime": "2026-03-13T11:00:00+05:30"
+      }
+    },
+    {
+      "fullUrl": "urn:uuid:d8712ced-3c35-51a8-96db-8e3096bb0b48",
+      "resource": {
+        "resourceType": "DocumentReference",
+        "id": "d8712ced-3c35-51a8-96db-8e3096bb0b48",
+        "status": "current",
+        "subject": {
+          "reference": "urn:uuid:9e986c0b-501d-5e91-8771-cc97c20b071f"
+        },
+        "content": [
+          {
+            "attachment": {
+              "contentType": "text/plain",
+              "data": "UGF0aWVudDogS2VyYWxpbiBWYXNobW9saQpNUk46IFdRLTQ3LTkxMDI3Ck1ldGZvcm1pbiA1MDAgbWcgdHdpY2UgZGFpbHkK"
+            }
+          }
+        ]
+      }
+    }
+  ]
+}

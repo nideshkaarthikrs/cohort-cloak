@@ -39,6 +39,10 @@ class DateTok:
     raw_month: str = ""
     ordinal: str = ""
     ambiguous: bool = False
+    order_known: bool = False
+    year_resolved: bool = False
+    append_year: bool = False
+    is_birth: bool = False
 
     def as_date(self, ref_year: int) -> dt.date:
         return dt.date(self.year or ref_year, self.month, self.day)
@@ -60,13 +64,16 @@ class DateTok:
         if self.kind == "hi":
             mon = HI_MONTHS[d.month - 1]
             s = f"{d.day}{self.seps[0]}{mon}"
-            return s + (f"{self.seps[1]}{d.year}" if self.year else "")
+            return s + (f"{self.seps[1] or chr(32)}{d.year}" if self.year or self.append_year else "")
         name = (EN_FULL if self.month_style == "full" else EN_ABBR)[d.month - 1]
         name = name.upper() if self.month_style_case == "upper" else name.title() if self.month_style_case == "title" else name
         if self.kind == "txt_mdy":
             return f"{name} {d.day}, {d.year}" if self.seps[0] == "," else f"{name} {d.day} {d.year}"
-        s = f"{d.day}{self.ordinal}{self.seps[0]}{name}"
-        return s + (f"{self.seps[1]}{d.year}" if self.year else "")
+        ordinal = self.ordinal
+        if ordinal:
+            ordinal = "th" if 10 < d.day % 100 < 14 else {1: "st", 2: "nd", 3: "rd"}.get(d.day % 10, "th")
+        s = f"{d.day}{ordinal}{self.seps[0]}{name}"
+        return s + (f"{self.seps[1] or chr(32)}{d.year}" if self.year or self.append_year else "")
 
     @property
     def month_style_case(self) -> str:

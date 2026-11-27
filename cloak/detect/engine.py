@@ -72,6 +72,7 @@ class Scrubber:
         self.ref_year = 2026
         self.file_tokens = {}   # fid -> tokens of the file name (hospital signature)
         self.src = ""           # current column/key/label, for d/m vs m/d votes
+        self.procedures = {}
         self.dx_pending = None  # ICD code of the enclosing coded element (pairs code with display)
 
     def emit(self, kind: str, value) -> None:
@@ -85,12 +86,12 @@ class Scrubber:
         return f"@@PSN{len(self.table) - 1}@@"
 
     def order(self) -> str:
-        keys = [(self.fid,)] + [("tok", t) for t in self.file_tokens.get(self.fid, ())]
+        keys = [(self.fid,)]
         return self.date_votes.order((self.fid, self.src), keys, "dmy")
 
     def vote_orders(self, layouts) -> None:
         if self.table is None:  # votes are collected in the learn pass only, then frozen
-            keys = [(self.fid, self.src), (self.fid,)] + [("tok", t) for t in self.file_tokens.get(self.fid, ())]
+            keys = [(self.fid, self.src), (self.fid,)]
             for lay in layouts:
                 for k in keys:
                     self.date_votes.vote(k, lay)
@@ -126,6 +127,10 @@ class Scrubber:
         """Apply the action for `role` to one string. Returns (new_value, redaction_count)."""
         if not value.strip():
             return value, 0
+        if role in ("age", "age_sex") and re.match(r"\s*-\s*\d", ascii_digits(value)):
+            self.identifiers += 1
+            self.stats["[INVALID_AGE]"] += 1
+            return "[AGE]", 1
         if role is not None:
             self.emit(role, value)
         if self.table is not None and role in ("patient_name", "mrn"):
@@ -134,6 +139,10 @@ class Scrubber:
             self.stats[ROLE_PLACEHOLDER[role]] += 1
             return self.sentinel("name" if role == "patient_name" else "mrn", ROLE_PLACEHOLDER[role]), 1
         if role in ("procedure", "package_code"):
+            if role == "procedure":
+                shadow, _ = normalize(value.strip())
+                if len(shadow) >= 5:
+                    self.procedures[shadow.casefold()] = value.strip()
             if self.table is None:
                 return value, 0
             return self.sentinel("proc", value, (role, value.strip())), 0
@@ -194,6 +203,8 @@ class Scrubber:
                 toks = find_dates(ascii_digits(value), self.order())
                 if toks:
                     t = toks[0]
+                    t.is_birth = True
+                    t.order_known = bool(self.date_votes._pick([(self.fid, self.src)]) or self.date_votes._pick([(self.fid,)]))
                     return (value[:t.start] + self.sentinel("date", value[t.start:t.end], (t, self.ref_year))
                             + value[t.end:]), 1
                 return "[DOB]", 1
@@ -457,6 +468,7 @@ class Scrubber:
             self.vote_orders(votes)
         taken = list(skip) + soft
         for t in toks:
+            t.order_known = bool(self.date_votes._pick([(self.fid, self.src)]) or self.date_votes._pick([(self.fid,)]))
             if t.year:
                 self.year_counts[t.year] += 1
             out.append((t.start, t.end, ("date", (t, self.ref_year))))
@@ -467,6 +479,12 @@ class Scrubber:
             if not any(s < b and a < e for a, b in taken):
                 out.append((s, e, ("age", int(shadow[s:e]))))
                 taken.append((s, e))
+        for term, original in sorted(self.procedures.items()):
+            for match in re.finditer(r"(?<!\w)" + re.escape(term) + r"(?!\w)", shadow, re.I):
+                a, b = match.span()
+                if not any(a < y and x < b for x, y in taken):
+                    out.append((a, b, ("proc", ("procedure", original))))
+                    taken.append((a, b))
         for m in ICD_RX.finditer(shadow):
             if any(m.start() < b and a < m.end() for a, b in taken):
                 continue
@@ -474,7 +492,9 @@ class Scrubber:
             out.append((m.start(1), m.end(1), ("icd", code)))
             taken.append((m.start(1), m.end(1)))
             pm = re.search(r"([^;:\n|()]{3,120}?)\s*\(\s*$", shadow[:m.start(1)])
-            if pm and re.search(r"[A-Za-z]{3}", pm.group(1)) and not any(pm.start(1) < b and a < pm.end(1) for a, b in taken):
+            if (pm and re.search(r"[A-Za-z]{3}", pm.group(1))
+                    and not any(pm.start(1) < b and a < pm.end(1) for a, b in taken)
+                    and not any(pm.start(1) < b and a < pm.end(1) for a, b, k in guards if k in ("history", "drug", "doctor"))):
                 out.append((pm.start(1), pm.end(1), ("icd_text", code)))
                 taken.append((pm.start(1), pm.end(1)))
         return out
@@ -494,13 +514,16 @@ class Scrubber:
         return kept
 
     def _scrub_lines(self, text: str):
+        chunks = re.split(r"(\r\n|\r|\n)", text)
+        source = chunks[0::2]
+        endings = chunks[1::2] + [""]
         out_lines, total = [], 0
-        for line in text.split("\n"):
+        for line in source:
             new, n = self._scrub_line(line)
             out_lines.append(new)
             total += n
-        total += self._continued_name_lines(text.split("\n"), out_lines)
-        return "\n".join(out_lines), total
+        total += self._continued_name_lines(source, out_lines)
+        return "".join(line + ending for line, ending in zip(out_lines, endings)), total
 
     _ONE_WORD_LINE = re.compile(r"^\s*([A-Z][a-z]{3,})\s*$")
 

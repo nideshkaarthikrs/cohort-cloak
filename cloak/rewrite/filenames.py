@@ -29,6 +29,16 @@ def _clean_component(name: str, names=None, ids=None) -> str:
     stem, dot, ext = name.rpartition(".")
     if not dot or not stem or len(ext) > 8 or _SEP.search(ext):
         stem, ext, dot = name, "", ""
+    # Match complete known/induced ID spans before punctuation splits their pieces.
+    if ids is not None:
+        merged = []
+        for start, end in ids.find(stem):
+            if merged and start < merged[-1][1]:
+                merged[-1] = (merged[-1][0], max(end, merged[-1][1]))
+            else:
+                merged.append((start, end))
+        for start, end in reversed(merged):
+            stem = stem[:start] + "~ID~" + stem[end:]
     parts = _SEP.split(stem)  # token, sep, token, sep, ..., token
     toks, seps = parts[0::2], parts[1::2] + [""]
     is_name = [bool(names is not None and len(t) >= 2 and names.has_token(t)) for t in toks]
@@ -38,7 +48,7 @@ def _clean_component(name: str, names=None, ids=None) -> str:
             while k < len(toks) and k - i <= 3 and (is_name[k] or _name_like(toks[k]) or re.fullmatch(r"[A-Z]{2,}", toks[k])):
                 is_name[k] = True
                 k += 1
-    flags = [(not is_name[i]) and (_flagged(t) or bool(ids is not None and ids.has_token(t))) for i, t in enumerate(toks)]
+    flags = [(not is_name[i]) and (t == "~ID~" or _flagged(t) or bool(ids is not None and ids.has_token(t))) for i, t in enumerate(toks)]
     idish = [(not is_name[i]) and (flags[i] or _idish(t)) for i, t in enumerate(toks)]
     # fail closed: capitalised unknown words hugging an ID/phone run are probably the patient's name
     i = 0

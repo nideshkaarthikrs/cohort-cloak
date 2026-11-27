@@ -15,7 +15,7 @@ def run(tmp_path, files, policy=None):
     out = tmp_path / "o"
     res = run_main(inp, out, "s", policy)
     assert res.returncode == 0, res.stderr
-    return {str(p.relative_to(out / "sanitized")): p.read_text(encoding="utf-8")
+    return {p.relative_to(out / "sanitized").as_posix(): p.read_text(encoding="utf-8")
             for p in (out / "sanitized").rglob("*") if p.is_file()}
 
 

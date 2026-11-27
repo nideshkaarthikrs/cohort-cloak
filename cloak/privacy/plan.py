@@ -5,6 +5,7 @@ from collections import defaultdict
 
 from cloak.privacy import suppress
 from cloak.privacy.ages import band_for
+from cloak.privacy.timeline import resolve_dates
 
 
 class Plan:
@@ -18,6 +19,7 @@ class Plan:
         self.unit_loc = unit_loc
         self.group_loc = group_loc
         self.proc_rare = proc_rare or {}  # (role, value or prefix) -> True when few patients have it
+        self.date_values = {}
         self.touched = set()      # units where something was generalised
 
     # ---- dates -----------------------------------------------------------------------------
@@ -115,7 +117,9 @@ def build(keys, policy, table, unit_psn, rels, unit_info) -> Plan:
         dx = frozenset(suppress.apply_level(c, code_level.get(c, 0))[0] for c in codes)
         dxc = frozenset(suppress.apply_level(c, 2)[0] for c in codes)
         loc = group_loc.get(g, {})
-        infos[g] = {"gender": loc.get("gender", ""), "age_min": min(ages), "district": (loc.get("district") or "").casefold(),
+        infos[g] = {"gender": loc.get("gender", ""), "age_min": min(ages), "ages": ages, "district": (loc.get("district") or "").casefold(), "state": (loc.get("state") or "[DISTRICT]").casefold(),
                     "dx": dx, "dx_chapter": dxc}
-    group_level = suppress.escalate(infos, int(policy["k_min"]), int(policy.get("k_max_level", 3)))
-    return Plan(keys, policy, unit_group, group_shift, group_ages, group_level, code_level, unit_loc, group_loc, proc_rare)
+    group_level = suppress.escalate(infos, int(policy["k_min"]), int(policy.get("k_max_level", 3)), int(policy["age_band_years"]), int(policy["age_top_code"]))
+    plan = Plan(keys, policy, unit_group, group_shift, group_ages, group_level, code_level, unit_loc, group_loc, proc_rare)
+    plan.date_values = resolve_dates(table, unit_group, group_shift)
+    return plan

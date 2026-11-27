@@ -1,85 +1,42 @@
-<!doctype html>
-<html lang="en"><head><meta charset="utf-8"><title>CohortCloak: Project Brief</title>
-<style>
-@page { size: A4; margin: 11mm 12mm; }
-* { box-sizing: border-box; }
-body { font-family: "Helvetica Neue", Arial, sans-serif; font-size: 10pt; line-height: 1.32; color: #14202b; margin: 0; }
-h1 { font-size: 16pt; margin: 0 0 2pt; color: #0b3c5d; }
-.sub { font-size: 10pt; color: #44525f; margin-bottom: 5pt; }
-h2 { font-size: 11pt; margin: 7pt 0 2pt; color: #0b3c5d; border-bottom: 1px solid #c9d6df; padding-bottom: 1pt; }
-p { margin: 0 0 3pt; } ul { margin: 0 0 3pt 13pt; padding: 0; } li { margin: 0 0 1.5pt; }
-table { border-collapse: collapse; width: 100%; font-size: 10pt; margin: 2pt 0 3pt; }
-th, td { border: 1px solid #c9d6df; padding: 1.5pt 4pt; text-align: left; vertical-align: top; }
-th { background: #eaf1f6; }
-svg { width: 100%; height: auto; display: block; margin: 2pt 0 3pt; }
-.two { display: flex; gap: 10pt; } .two > div { flex: 1; }
-.page2 { break-before: page; }
-code { font-family: Menlo, monospace; font-size: 9.5pt; }
+<!doctype html><html lang="en"><head><meta charset="utf-8"><title>CohortCloak Project Brief</title><style>
+@page {size:A4;margin:12mm;} *{box-sizing:border-box} body{font-family:Arial,sans-serif;font-size:10pt;line-height:1.32;color:#172b3a;margin:0} h1{font-size:19pt;line-height:1.12;color:#073b59;margin:0 0 6pt} h2{font-size:11.5pt;color:#073b59;border-bottom:1px solid #b7cfdd;margin:10pt 0 4pt;padding-bottom:3pt} p{margin:0 0 5pt} ul{padding-left:15pt;margin:3pt 0 5pt} li{margin-bottom:4pt} .sub{color:#496575;font-size:10pt}.flow{display:flex;align-items:center;gap:5pt;margin:8pt 0}.box{flex:1;text-align:center;padding:9pt 3pt;border:1px solid #1a597a;background:#eaf2f6;border-radius:3pt;font-weight:bold;font-size:10pt} table{width:100%;border-collapse:collapse;font-size:10pt;margin:6pt 0} td,th{border:1px solid #c5d6e0;text-align:left;padding:5pt;vertical-align:top} th{background:#eaf2f6}.page2{break-before:page}.note{padding:7pt;border-left:3pt solid #17617d;background:#f1f6f8} code{font-family:Consolas,monospace;font-size:10pt}
 </style></head><body>
-
-<h1>CohortCloak: a privacy firewall that links people without exposing them</h1>
-<div class="sub"><b>Track 3 · Secret Wards</b> · Team: <b>Moorthi Annan Gang</b> (Nidesh Kaarthik R S, SRISANJAY G, Prithviraj S, Sai Samanvith G) · Repo: github.com/nideshkaarthikrs/cohort-cloak · Models used: <b>none</b> (rules, gazetteers, classical string similarity)</div>
-
-<h2>1. In one paragraph</h2>
-<p>CohortCloak sanitises a synthetic multi-hospital dump (CSV/TSV, nested JSON, FHIR, English/Hindi/Hinglish text) offline on 2 CPUs.
-It redacts identifiers in every channel (content, file names, headers, keys, base64, encodings), keeps clinical values exact,
-gives each patient one keyed pseudonym across all files, and then <i>measures</i> its own re-identification risk with a re-implemented
-registry attacker and picks its privacy settings from that measurement. Its single best idea: a two-pass design, learning every name and ID
-from structured fields first and then using them everywhere, with cluster-level privacy decisions applied after linkage.</p>
-
-<h2>2. Architecture</h2>
-<svg viewBox="0 0 520 44" xmlns="http://www.w3.org/2000/svg" font-family="Helvetica, Arial, sans-serif" font-size="11">
- <defs><marker id="a" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 z" fill="#0b3c5d"/></marker></defs>
- <g fill="#eaf1f6" stroke="#0b3c5d">
-  <rect x="1" y="6" width="68" height="30" rx="4"/><rect x="91" y="6" width="68" height="30" rx="4"/>
-  <rect x="181" y="6" width="88" height="30" rx="4"/><rect x="291" y="6" width="58" height="30" rx="4"/>
-  <rect x="371" y="6" width="68" height="30" rx="4"/><rect x="461" y="6" width="58" height="30" rx="4"/></g>
- <g fill="#14202b" text-anchor="middle" dominant-baseline="middle">
-  <text x="35" y="21">input/</text><text x="125" y="21">1 Ingest</text><text x="225" y="21">2 Detect</text>
-  <text x="320" y="21">3 Link</text><text x="405" y="21">4 Privacy</text><text x="490" y="21">Outputs</text></g>
- <g stroke="#0b3c5d" stroke-width="1.5" marker-end="url(#a)"><line x1="69" y1="21" x2="89" y2="21"/><line x1="159" y1="21" x2="179" y2="21"/><line x1="269" y1="21" x2="289" y2="21"/><line x1="349" y1="21" x2="369" y2="21"/><line x1="439" y1="21" x2="459" y2="21"/></g>
-</svg>
-<p><b>Flow.</b> <i>input/</i> (any format, any encoding) &rarr; <i>Ingest</i> (sniff, decode, quarantine) &rarr; <i>Detect</i> (pass 1 learns names, IDs, ID shapes and date order from every channel; pass 2 renders with placeholders that carry payloads) &rarr; <i>Link</i> (blocking, Fellegi-Sunter scores, constrained clusters, HMAC pseudonyms) &rarr; <i>Privacy plan</i> (per-patient date shift, age band, rare-diagnosis and k-anonymity decisions, resolved per patient) &rarr; <i>Outputs</i>: <code>sanitized/</code>, <code>report.json</code>, <code>records.jsonl</code>, logs with enums only. A linking failure degrades to "unlinked but complete"; a file failure to quarantine with a snake_case reason.</p>
-
-<h2>3. How it works</h2>
+<h1>CohortCloak<br>A privacy firewall that keeps patient records useful</h1>
+<p class="sub"><b>Track 3 · Secret Wards · Moorthi Annan Gang</b><br>Nidesh Kaarthik R S · SRISANJAY G · Prithviraj S · Sai Samanvith G<br>github.com/nideshkaarthikrs/cohort-cloak · Models: none · Local hardening: 27 November 2026</p>
+<h2>1. Pitch and architecture</h2>
+<p>An offline, CPU-only pipeline for synthetic Indian hospital exports in English, Devanagari Hindi and Hinglish. It removes personal identifiers, links repeated patient records with keyed pseudonyms, and applies patient-consistent privacy decisions while retaining clinical measurements.</p>
+<div class="flow"><div class="box">Ingest</div>→<div class="box">Learn / detect</div>→<div class="box">Link patients</div>→<div class="box">Privacy plan</div>→<div class="box">Safe export</div></div>
+<p><b>Outputs:</b> <code>sanitized/</code>, <code>report.json</code>, and <code>records.jsonl</code>. Unsupported or unsafe inputs are quarantined and counted; they are never copied as sanitised records.</p>
+<h2>2. How the components work</h2>
 <ul>
-<li><b>Ingestion:</b> sniff by content, not extension; utf-8/BOM/UTF-16/cp1252 with a mojibake check; JSON behind a <code>.csv</code> name is parsed as JSON; empty, binary, XML/PDF/JPG, truncated, 1,500-deep and bad-encoding files are quarantined (never copied) with a reason code.</li>
-<li><b>Detection:</b> clinical <i>guards</i> first (doctors, doses, <code>1-0-1</code>, vitals, ranges, ICD, wards, <code>C/O fever</code> vs <code>C/O Ramesh</code>, <code>K/C/O</code>, eponyms); hard identifiers (phones incl. Devanagari digits, Aadhaar, ABHA, PAN, shape-induced IDs) override guards. Column/key roles come from multilingual header synonyms plus a value profile (values beat headers). Names: run-time dictionary matched across spellings and scripts by phonetic skeletons (Rina/Reena, Mohd/Mohammad/मोहम्मद), cues (S/o, W/o, ji/sahab, <code>ko/ne</code>, "called by", WhatsApp senders, name-near-phone), gazetteers, and a fail-closed rule for two unknown capitalised words. Work happens on a normalised shadow (homoglyphs, zero-width, diacritics) and decodes base64, %-encoding, <code>\u</code> escapes and entities.</li>
-<li><b>Linkage and pseudonyms:</b> per-record evidence, blocking on IDs, phones, DOB and name skeletons, hand-set Fellegi-Sunter weights, hard cannot-links, demotion of household/attendant IDs, constrained clustering with an ambiguity margin, a unique-match rule for fragments, <code>PSN-</code> + HMAC-SHA256 keyed by <code>RAKSHA_SECRET</code>.</li>
-<li><b>Privacy layer:</b> per-patient date shift (stays and intervals exact, any format and Hindi months), cluster-consistent 5-year age bands, rare-ICD generalisation to category/chapter, k-anonymity escalation, DOB and village redacted, PIN to 3 digits.</li>
-<li><b>Security:</b> keys derived in memory by HKDF; AES-GCM spill; no PII or secret in stdout, stderr, logs, report, temp files; the input is read-only; exception text is never recorded, only class names.</li>
+<li><b>Ingestion:</b> content sniffing, encoding detection and structured parsing for CSV/TSV, JSON and FHIR bundles, plus text. Input bytes remain unchanged.</li>
+<li><b>Detection:</b> clinical guards protect doctors, medicines, doses, labs, vitals and complaints. Validators, multilingual roles, context cues and a learned dictionary locate identifiers across content, keys, headers, filenames and encoded payloads.</li>
+<li><b>Linkage:</b> identity evidence and classical similarity feed constrained clustering. Strong contradictions and household-ID handling prevent false merges. HMAC-SHA256 derives pseudonyms from the release secret.</li>
+<li><b>Dates:</b> source evidence establishes numeric date order; reliable linked-patient anchors can resolve remaining candidates after linking. One nonzero keyed offset preserves intervals. A missing year is appended only when reliably established and needed for rollover clarity.</li>
+<li><b>Privacy:</b> actual exported age bands and locations define anonymity cells. DOB/village redaction and cohort-scaled rare-diagnosis generalisation reduce exposure without altering drugs, lab results or vital measurements.</li>
 </ul>
-
-<h2>4. USP</h2>
-<ul>
-<li><b>Learn-then-redact across channels:</b> every structured name/ID protects file names, keys, headers, prose and base64, so unseen names in structured fields cannot leak elsewhere.</li>
-<li><b>Measured privacy:</b> <code>attack_sim.py</code> re-implements the registry attacks; <code>sweep.py</code> chose the settings by a privacy-utility score, not by guess.</li>
-<li><b>Honest generalisation tests:</b> generated stress sets (new names, headers, formats, hidden channels, canaries, new layouts) with their own truth.</li>
-</ul>
-
-<div class="page2"></div>
-<h2>5. Privacy-utility trade-off (measured on the practice data, secret = practice)</h2>
-<table>
-<tr><th style="width:55%">Measure</th><th>Value</th></tr>
-<tr><td>personal data leaked: overall / Hindi / Hinglish</td><td>0% / 0% / 0% (0 of 3230 pieces; canaries 0 of 4)</td></tr>
-<tr><td>medical values kept</td><td>94.3% (4,576 of 4,855); doctors, doses, vitals, labs, complaints, history, wards 100%; rare diagnoses, procedures and package codes generalised by design</td></tr>
-<tr><td>linking precision / recall / F0.5</td><td>1.000 / 1.000 / 1.000; wrong merges 0, no patient split; both homonym pairs separated; language and fragment traps linked</td></tr>
-<tr><td>re-identification risk (own attack simulation, ratio to raw input)</td><td>A3 record linkage 3.9% · A4 profile re-identification 0.0% (raw 100%) · A5 targeted 48.3% (raw 92%)</td></tr>
-<tr><td>temporal and truthfulness</td><td>date intervals exact 99.5%; every age band contains the true age (350 of 350)</td></tr>
-<tr><td>run time / peak memory</td><td>about 1.4 s / 55 MB (limits 15 min / 4 GB); 10x data scales with exponent about 0.8; output byte-identical across runs</td></tr>
-<tr><td><b>on data we did not tune on</b></td><td>3 generated stress seeds: 0% critical IDs and names, 0 of 10 canaries. <b>Blind sets written by others, first run before any fix (items leaked):</b> subagent, 41 files: 7.4%; Codex adversarial, 50 files: 16.3%; Codex realistic, 60 files: 0.2%; Codex 12-script, 70 files: 10.8% (names in non-Latin scripts); Codex OCR-noise and odd-format, 80 files: 8.0%; three AI-written sets: 20.4%, 14.3% (11 scripts, mostly unscored) and <b>1.0% on Hindi/Hinglish/English, the scored scripts</b>. After fixes 0.2-2.9% on scored scripts, but those are tuned, not held out.</td></tr>
-</table>
-<p><b>Why these settings.</b> The sweep (tools/sweep_results.md) scores each choice by <code>25(1-risk)·min(1,U/0.4) + 20U</code>. Redacting DOB cut A4 from 25% to 2% at a cost of about 0.01 in utility; k-anonymity cut A4 from 54% to 2%; redacting the village instead of keeping the district cut A4 from 17% to 2%. Rare diagnoses are the open trade-off: a fixed threshold of 8 lowers A5 to 17% of raw but keeps only 89% of medical values; our cohort-scaled threshold (floor 3, cap 8) keeps 94.3% and leaves A5 at 48%. We protect clinical utility and flag the gap. Date intervals are never traded away.</p>
-
-<h2>6. Security design</h2>
-<p>Assume the server will be breached: temporary data is encrypted (AES-GCM, key = HKDF of the release secret, never stored) and deleted on exit, errors and SIGTERM; pseudonyms are keyed HMACs, so unkeyed hash dictionaries (the arena's A6) fail and a new secret yields new pseudonyms and new date shifts (A7). Logs carry only enums and integers. Files we cannot process are quarantined, never copied, and listed in <code>report.json</code>.</p>
-
-<h2>7. Known limitations (honest list)</h2>
-<ul>
-<li><b>Targeted attack:</b> A5 stays at 48% of raw on 48 patients; length of stay cannot be hidden by design, and rare conditions are only generalised below the scaled threshold.</li>
-<li><b>New layouts:</b> unseen layouts and scripts are the main risk: first-run leaks on blind sets ranged from 0.2% to 20.4% (1.0% on the scored scripts). Our stress sets and attacker are our own, not the organisers' evaluator.</li>
-<li><b>Gaps:</b> procedures and package codes are generalised only in structured fields; OPD file names keep the month; memory grows with the number of events (about 1.1 GB and 81 s for 36 MB of repeated dev data, measured in Docker at 2 CPUs / 4 GB).</li>
-<li><b>Tuning:</b> linkage weights, thresholds and the operating point were tuned on the practice data; generalisation score is low by design (DOB, village, PIN prefix are redacted or coarse).</li>
-<li><b>Next steps:</b> a layout set written by a human, and spilling the event table to disk for much larger inputs.</li>
-</ul>
-</body></html>
+<h2>3. USP and selected trade-off</h2>
+<p>Learned identity evidence protects multiple channels, while delayed timeline resolution avoids cross-patient date-order contamination. The operating point is selected using a fixed 48-policy grid and a bounded 12-policy follow-up subject to zero practice leaks, no false merges, exact measured intervals, protected-clinical retention and a medical-retention floor.</p>
+<p><b>Selected:</b> 20-year base age bands; top code 75; k = 3; DOB and villages redacted; PIN prefixes subject to escalation; rare diagnoses generalised at 5% of patients, floor 3/cap 8. Procedures and package codes are kept. Optional procedure generalisation is consistent across structured values and prose.</p>
+<h2>4. Security design</h2>
+<p>Keys remain in memory. AES-GCM protects spill data; cleanup runs on normal exit, errors and supported signals. Side-channel logs contain enums and counts, never record text or secrets. Linux tests use no network, read-only inputs/root, private temporary storage and fixed resource limits. Ground truth and attacker data are evaluation-only.</p>
+<section class="page2"><h2>5. Measured privacy and utility</h2>
+<p class="sub">Official public practice data, original file hashes verified. Local attacker measurements are estimates from our own re-implementation, not official hidden-set scores.</p>
+<table><tr><th>Measure</th><th>Original commit</th><th>Local hardening</th></tr>
+<tr><td>Personal data visible</td><td>0 / 3230</td><td>0 / 3230</td></tr>
+<tr><td>Medical probes kept</td><td>4576 / 4855 · 94.3%</td><td>4666 / 4855 · 96.1%</td></tr>
+<tr><td>Linking precision / recall</td><td>1.000 / 1.000</td><td>1.000 / 1.000; no wrong merges</td></tr>
+<tr><td>Originally measured stays exact</td><td>74 / 78</td><td>78 / 78</td></tr>
+<tr><td>Targeted attack: absolute success</td><td>44.5%</td><td>32.9%</td></tr>
+<tr><td>Targeted attack: ratio to raw</td><td>48.3%</td><td>35.7%</td></tr>
+<tr><td>Canaries / unsafe raw copies</td><td>0 / 0</td><td>0 / 0</td></tr></table>
+<p><b>Clinical fidelity:</b> medicines, doses, frequencies, labs, vitals, doctors, complaints and history retain 100% of their practice probes. Rare diagnoses and coded descriptions may still be generalised intentionally.</p>
+<p><b>Temporal coverage:</b> correcting the evaluator's source decoding, removed-DOB alignment and repeated-date handling accounts for all 1042 dated events. All 13959 comparable intervals and 201 admission/discharge pairs are exact. The expanded denominator is separate from the original 78-pair comparison. All 379 valid age probes are truthful; one negative input age is masked and counted separately.</p>
+<h2>6. Independent tests and reproducibility</h2>
+<p><b>Blind corpus:</b> an independent author with no code access froze separate tuning and holdout splits. After generic tuning fixes, the untouched 24-file holdout leaked 0/8427 planted PII values. All 1393 medical probes in processed files survived; 278/1671 were lost through four quarantined HTML/XML files. Linkage remains partial: 56/384 oracle patients assigned, 328 unresolved/unexported, no observed false mixed-patient assignments.</p>
+<p><b>Independent privacy probe:</b> correct pure high-confidence heuristic claims fell from 3 to 2 after the policy change. Six of 14 real targets remain unresolved; diagnostic mass bounds are 30.2-73.1%, not official scores or calibrated probabilities.</p>
+<p><b>Independent FHIR:</b> HL7 validator 7.0.8 with pinned R4 definitions found the same 50 errors in 19 raw and released practice bundles (missing categories and unknown custom extensions). No new errors were introduced. A synthetic valid nine-resource-type collection has zero errors before/after. External terminology is disabled; this is not full certification.</p>
+<p><b>Execution:</b> Windows and Linux tests pass. Same input/key gives identical files and mappings across OS/hash seeds; a different key changes outputs. A constrained Linux practice run took 8.8 seconds including startup, about 50 MiB process RSS, network disabled, 2 CPUs, 4 GiB and a 900-second deadline. Inputs remain unchanged; temporary files are cleaned. Required checkers return CONTRACT OK and READY TO SUBMIT.</p>
+<h2>7. Trade-offs and remaining limits</h2>
+<p>Targeted re-identification remains possible: exact stays, conditions and hospital context are informative. Wider age bands sacrifice age precision. Overall practice preservation is 96.1%; rare diagnoses and coded descriptions may be generalised. Unknown date order falls back to DMY, and missing years need reliable anchors. Ambiguous multi-patient batches are left unassigned. Novel layouts, severe OCR, larger inputs and the three hidden datasets remain uncertain.</p>
+<p class="note"><b>Reproduce:</b> <code>python tools/audit.py --kit &lt;kit&gt;</code><br><code>python tools/check_submission.py --kit &lt;kit&gt; --repo . --run</code><br>Use <code>tools/container_check.py</code> for constrained offline runs and <code>tools/hl7_r4_check.py</code> for independent R4 checks. README documents evidence and uncertainty. Audit inputs, truth and development artifacts are excluded from submission.</p></section></body></html>

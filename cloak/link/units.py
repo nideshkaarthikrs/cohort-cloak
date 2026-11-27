@@ -34,9 +34,18 @@ def link_units(results, sink, keys, policy):
     default_year = years.most_common(1)[0][0] if years else 2026
     units = _unit_keys(results)
     evs = [ev_mod.build(by_unit.get(u, ()), default_year) for u in units]
-    roots, uf = clustering.cluster(evs, int(policy["link_threshold"]), int(policy["soft_link_margin"]))
-    final = clustering.assign_fragments(evs, roots, uf)
-    frag = sum(1 for a, b in zip(roots, final) if a is None and b is not None)
+    # A parser unit containing different unique personal IDs may hold several patients.
+    # Redact it fully, but do not assign their combined evidence to one person.
+    active = [i for i, ev in enumerate(evs)
+              if not any(len(ev.ids.get(kind, ())) > 1 for kind in ("aadhaar", "abha"))
+              and not any(kind == "multi_patient_unit" for kind, _ in by_unit.get(units[i], ()))]
+    candidates = [evs[i] for i in active]
+    roots, uf = clustering.cluster(candidates, int(policy["link_threshold"]), int(policy["soft_link_margin"]))
+    linked = clustering.assign_fragments(candidates, roots, uf)
+    final = [None] * len(evs)
+    for index, group in zip(active, linked):
+        final[index] = group
+    frag = sum(1 for a, b in zip(roots, linked) if a is None and b is not None)
     groups = defaultdict(list)
     for i, r in enumerate(final):
         if r is not None:
@@ -50,7 +59,7 @@ def link_units(results, sink, keys, policy):
             if kind in ("district", "tehsil", "state") and kind not in info:
                 info[kind] = value.strip()
         unit_info[u] = info
-    return unit_psn, unit_info, {"clusters": len(groups), "units": len(units), "fragments": frag}
+    return unit_psn, unit_info, {"clusters": len(groups), "units": len(units), "fragments": frag, "ambiguous_units": len(evs) - len(active)}
 
 
 def patient_for(fid, loc, locs, unit_psn, placed):

@@ -1,6 +1,7 @@
 """Rare-value suppression and k-anonymity escalation (ICD-10 generalisation)."""
 import re
 from collections import Counter, defaultdict
+from cloak.privacy.ages import band_for
 
 ICD_RX = re.compile(r"(?<![A-Za-z0-9.\-])(?<!itamin )(?<!VIT )(?<!Vit )([A-TZ]\d{2}(?:\.\d{1,4})?)(?![A-Za-z0-9\-])")
 
@@ -71,7 +72,7 @@ def apply_level(code: str, level: int):
     return rng or category(code), title
 
 
-def escalate(groups: dict, k_min: int, max_level: int = 3) -> dict:
+def escalate(groups: dict, k_min: int, max_level: int = 3, base_width: int = 5, top: int = 85) -> dict:
     """groups: id -> dict(gender, age_min, district, dx: frozenset of generalised dx labels).
     k is measured over the quasi-identifiers a registry attacker holds (gender, age band, district); diagnoses are
     protected separately by rare-value suppression. Returns id -> escalation level (0..max_level): 1/2 widen the age
@@ -82,10 +83,11 @@ def escalate(groups: dict, k_min: int, max_level: int = 3) -> dict:
 
     def cell(g):
         info, lv = groups[g], level[g]
-        width = 5 if lv == 0 else 10 if lv == 1 else 20
-        band = info["age_min"] // width if info["age_min"] is not None else None
-        district = "" if lv >= 3 else info["district"]
-        return (info["gender"], width, band, district)
+        width = base_width * (1 if lv == 0 else 2 if lv == 1 else 4)
+        ages = info.get("ages") or [info["age_min"]]
+        band = band_for(ages, width, top) if ages[0] is not None else None
+        district = info.get("state", "[DISTRICT]") if lv >= 3 else info["district"]
+        return (info["gender"], band, district)
 
     for _ in range(max_level):
         counts = Counter(cell(g) for g in groups)

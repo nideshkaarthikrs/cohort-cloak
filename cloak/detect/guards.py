@@ -13,7 +13,7 @@ _RANGE = re.compile(r"(?<![\w.])\d+(?:\.\d+)?\s?-\s?\d+(?:\.\d+)?(?![\w.])")
 _ICD = re.compile(r"\b[A-TV-Z]\d{2}(?:\.\d{1,4})?\b")
 _LOINC = re.compile(r"(?<![\w\-])\d{3,5}-\d(?![\w\-])")
 _HOSP = re.compile(
-    r"\b(?:[A-Z][\w'.\-]*\s+){1,5}(?:Hospital|Hospitals|Diagnostics|Pathology|Sadan|Clinic|Nursing\s+Home|Medical\s+College|Labs?|Laboratory|Healthcare)\b")
+    r"\b(?:[A-Z][\w'.\-]*\s+){1,5}(?:Hospital|Hospitals|Diagnostics|Pathology|Sadan|Clinic|Nursing\s+Home|Medical\s+(?:College|Institute|Centre|Center)|Referral\s+(?:Centre|Center)|Labs?|Laboratory|Healthcare)\b")
 _WARD = re.compile(r"\bWard\s*\d+\s*\([A-Za-z &]+\)(?:\s*/\s*Bed\s*\d+)?|\bBed\s*\d+\b|\bWard/Bed\b")
 _HIST_TAIL = r"(?:\s+(?:[a-z][\w'\-]*|\d+\s?(?:yrs?|years?|days?|months?)[\w ]*|[A-Z]{2,4}|[A-Za-z]+'s|and|&|,))*"
 _HIST = re.compile(r"(?:K/C/O|H/O)\s+((?:[a-z][\w'\-]*|[A-Z]{2,4}|[A-Z][a-z]+'s)" + _HIST_TAIL + ")")

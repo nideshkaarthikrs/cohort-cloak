@@ -38,8 +38,8 @@ def unit_text(raw: str, loc: str, fmt: str, delim: str):
         return ""
 
 
-def read(p: Path) -> str:
-    return p.read_bytes().decode("utf-8-sig", errors="replace")
+def read(p: Path, encoding="utf-8-sig") -> str:
+    return p.read_bytes().decode(encoding, errors="replace")
 
 
 def dates_in(text, hint):
@@ -53,10 +53,43 @@ def dates_in(text, hint):
     return out
 
 
+
+def anchored_shifts(truth, mapped, inp_root, out):
+    """Independent, positional date pairs establish offsets; no output is rewritten here."""
+    votes = defaultdict(Counter)
+    for rel, f in truth["files"].items():
+        target = mapped.get(f["sha256"])
+        if not target or not (out / "sanitized" / target).is_file():
+            continue
+        raw_in, raw_out = read(inp_root / rel, f.get("encoding") or "utf-8-sig"), read(out / "sanitized" / target)
+        for loc, u in f["units"].items():
+            if not u.get("dates"):
+                continue
+            hint = u["dates"][0].get("hint", "dmy")
+            left = dates_in(unit_text(raw_in, loc, f["format"], f.get("delimiter")), hint)
+            right = dates_in(unit_text(raw_out, loc, f["format"], f.get("delimiter")), hint)
+            if len(left) != len(right):
+                continue
+            for meta in u["dates"]:
+                original = dt.date.fromisoformat(meta["true"])
+                if left.count(original) != 1:
+                    continue
+                offset = (right[left.index(original)] - original).days
+                if 0 < abs(offset) <= 180:
+                    votes[meta["patient"]][offset] += 1
+    result = {}
+    for patient, counts in votes.items():
+        best = counts.most_common()
+        if best[0][1] >= 2 and (len(best) == 1 or best[0][1] > best[1][1]):
+            result[patient] = best[0][0]
+    return result
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--output", required=True)
     ap.add_argument("--truth", required=True)
+    ap.add_argument("--details", help="Write temporal alignment counts as JSON")
     a = ap.parse_args()
     out, truth_p = Path(a.output), Path(a.truth)
     truth = json.loads(truth_p.read_text(encoding="utf-8"))
@@ -64,6 +97,8 @@ def main():
     report = json.loads((out / "report.json").read_text(encoding="utf-8"))
     mapped = {e["input_sha256"]: (e.get("output") or "").replace("sanitized/", "", 1) for e in report["files"]}
 
+    offsets = anchored_shifts(truth, mapped, inp_root, out)
+    alignment = Counter()
     events = defaultdict(list)   # patient -> [(event, true_date, out_date)]
     los_total = los_ok = 0
     band_total = band_ok = 0
@@ -73,7 +108,7 @@ def main():
         o = mapped.get(f["sha256"])
         if not o or not (out / "sanitized" / o).is_file():
             continue
-        raw_in, raw_out = read(inp_root / rel), read(out / "sanitized" / o)
+        raw_in, raw_out = read(inp_root / rel, f.get("encoding") or "utf-8-sig"), read(out / "sanitized" / o)
         for m in re.finditer(r"\b([A-TV-Z]\d{2})(?:\.\d{1,4})?\b", raw_in):
             icd_in[m.group(1)] += 1
         for m in re.finditer(r"\b([A-TV-Z]\d{2})(?:\.\d{1,4})?\b", raw_out):
@@ -92,6 +127,15 @@ def main():
                 for d, meta in truth_dates.items():
                     i = pos.get(d)
                     od = dout[i] if i is not None and i < len(dout) and len(dout) == len(din) else None
+                    if od is None and i is not None and meta["patient"] in offsets:
+                        expected = d + dt.timedelta(days=offsets[meta["patient"]])
+                        if dout.count(expected) == din.count(d) and dout.count(expected) > 0:
+                            od = expected
+                            alignment["recovered_from_independent_patient_anchors"] += 1
+                    alignment["expected"] += 1
+                    alignment["resolved" if od is not None else "unresolved"] += 1
+                    if od is None:
+                        alignment["count_mismatch" if len(din) != len(dout) else "unmatched_source"] += 1
                     events[meta["patient"]].append((meta["event"], d, od))
             for fld in u.get("fields", []):
                 path, kind, true = fld.get("path"), fld["kind"], fld["true"]
@@ -120,6 +164,9 @@ def main():
                 cell = ascii_digits(cell)
                 score = 0.0
                 if kind == "age":
+                    if not isinstance(true, (int, float)) or not 0 <= true <= 120:
+                        alignment["invalid_input_ages"] += 1
+                        continue
                     m = re.search(r"(\d{1,3})\s*-\s*(\d{1,3})", cell)
                     p = re.search(r"(\d{1,3})\s*\+", cell)
                     n = re.search(r"\d{1,3}", cell)
@@ -183,6 +230,10 @@ def main():
     keys = set(icd_in) | set(icd_out)
     tin, tout = sum(icd_in.values()) or 1, sum(icd_out.values()) or 1
     tvd = 0.5 * sum(abs(icd_in[k] / tin - icd_out[k] / tout) for k in keys)
+    alignment["rendering_interval_errors"] = pairs - exact
+    if a.details:
+        Path(a.details).write_text(json.dumps(dict(alignment, interval_pairs=pairs, exact_intervals=exact, stays=los_total, exact_stays=los_ok), indent=2), encoding="utf-8")
+    print("temporal alignment:", dict(alignment))
     print(f"temporal: intervals exact {exact}/{pairs} (+-1 day {near}/{pairs}); LOS exact {los_ok}/{los_total}")
     print(f"bands: truthful {band_ok}/{band_total}")
     print("generalisation by field: " + ", ".join(f"{k} {sum(v) / len(v):.2f}" for k, v in sorted(gen.items())) + f"; mean {gscore:.3f}")
